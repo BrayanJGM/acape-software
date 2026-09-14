@@ -35,6 +35,35 @@ const GrameraUI = (function () {
           <button class="btn btn-outline-danger gramera-ui-desconectar"><i class="fa-solid fa-unplug"></i> Desconectar</button>
           <button class="btn btn-outline-secondary gramera-ui-actualizar"><i class="fa-solid fa-rotate"></i> Actualizar puertos</button>
         </div>
+
+        <details class="border rounded p-3 mt-3 gramera-test-details">
+          <summary class="fw-bold" style="cursor:pointer"><i class="fa-solid fa-flask-vial"></i> Validación de pesaje</summary>
+          <div class="mt-2">
+            <p class="small text-muted mb-2">Escribe el peso que <b>muestra la pantalla de la balanza</b> y pulsa Capturar. Usa dos pesos distintos (ej. botella de 1 L y de 2.2 L).</p>
+            <div class="row g-2 align-items-end mb-1">
+              <div class="col-5">
+                <label class="form-label small mb-0">Test 1 (kg)</label>
+                <input type="number" step="0.001" min="0.001" class="form-control form-control-sm gramera-test-input" data-test="test1" placeholder="ej. 1.000">
+              </div>
+              <div class="col-3">
+                <button class="btn btn-sm btn-primary gramera-test-capturar" data-test="test1">Capturar</button>
+              </div>
+              <div class="col-4 small gramera-test-result" data-test="test1">—</div>
+            </div>
+            <div class="row g-2 align-items-end">
+              <div class="col-5">
+                <label class="form-label small mb-0">Test 2 (kg)</label>
+                <input type="number" step="0.001" min="0.001" class="form-control form-control-sm gramera-test-input" data-test="test2" placeholder="ej. 2.200">
+              </div>
+              <div class="col-3">
+                <button class="btn btn-sm btn-primary gramera-test-capturar" data-test="test2">Capturar</button>
+              </div>
+              <div class="col-4 small gramera-test-result" data-test="test2">—</div>
+            </div>
+            <div class="mt-2 p-2 rounded gramera-test-diagnostico bg-light small"></div>
+            <button class="btn btn-sm btn-outline-secondary mt-2 gramera-test-reset">Limpiar pruebas</button>
+          </div>
+        </details>
         <p class="gramera-ui-msg mt-2 mb-0 small text-muted"></p>
       </div>
     `;
@@ -53,6 +82,16 @@ const GrameraUI = (function () {
     el.querySelector('.gramera-ui-detectar').addEventListener('click', () => detectarVelocidad(el));
     el.querySelector('.gramera-ui-desconectar').addEventListener('click', () => desconectar(el));
     el.querySelector('.gramera-ui-actualizar').addEventListener('click', () => cargarTodo(el, true));
+
+    el.querySelector('.gramera-test-reset').addEventListener('click', () => limpiarTests(el));
+    el.querySelectorAll('.gramera-test-capturar').forEach((btn) => {
+      btn.addEventListener('click', () => capturarTest(el, btn.dataset.test));
+    });
+    el.querySelectorAll('.gramera-test-input').forEach((input) => {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') capturarTest(el, input.dataset.test);
+      });
+    });
 
     cargarTodo(el);
 
@@ -79,6 +118,7 @@ const GrameraUI = (function () {
 
       renderPuertos(el, ports, actual);
       actualizarEstado(el);
+      cargarTests(el);
     }).catch((err) => {
       mostrarMsg(el, 'Error consultando la gramera: ' + (err.response ? err.response.data.message : err.message), true);
     });
@@ -179,6 +219,84 @@ const GrameraUI = (function () {
     });
   }
 
+  function cargarTests(el) {
+    axios.get('/gramera/test').then((resp) => {
+      const { tests, diagnostico } = resp.data || {};
+      (tests || []).forEach((test) => {
+        const input = el.querySelector('.gramera-test-input[data-test="' + test.id + '"]');
+        if (input && test.esperado != null) input.value = test.esperado;
+        renderTestResult(el, test);
+      });
+      renderDiagnostico(el, diagnostico);
+    }).catch(() => {});
+  }
+
+  function capturarTest(el, testId) {
+    const input = el.querySelector('.gramera-test-input[data-test="' + testId + '"]');
+    const esperado = input ? Number(input.value) : NaN;
+    if (!Number.isFinite(esperado) || esperado <= 0) {
+      return mostrarMsg(el, 'Escribe en el Test ' + (testId === 'test1' ? '1' : '2') + ' el peso que muestra la balanza (kg).', true);
+    }
+
+    axios.post('/gramera/test', { id: testId, esperado }).then((resp) => {
+      const data = resp.data;
+      if (!data.ok) return mostrarMsg(el, data.error || 'No se pudo capturar el test', true);
+
+      renderTestResult(el, data.test);
+      renderDiagnostico(el, data.diagnostico);
+
+      if (data.diagnostico && data.diagnostico.verdicto === 'confirmado') {
+        Toast.fire({ text: 'Pesaje validado. Listo para usar Pesar.', icon: 'success' });
+      } else if (data.diagnostico && data.diagnostico.verdicto === 'pendiente') {
+        const siguiente = testId === 'test1' ? '2' : '1';
+        Toast.fire({ text: 'Test ' + (testId === 'test1' ? '1' : '2') + ' capturado. Ahora captura el Test ' + siguiente + ' con otro peso.', icon: 'info', timer: 4000 });
+      } else if (data.diagnostico) {
+        Toast.fire({ text: data.diagnostico.mensaje || 'No concuerda', icon: 'warning', timer: 6000 });
+      }
+    }).catch((err) => {
+      mostrarMsg(el, 'Error guardando el test: ' + (err.response ? err.response.data.error : err.message), true);
+    });
+  }
+
+  function limpiarTests(el) {
+    axios.post('/gramera/test/reset', {}).then(() => {
+      el.querySelectorAll('.gramera-test-input').forEach((i) => (i.value = ''));
+      el.querySelectorAll('.gramera-test-result').forEach((s) => (s.innerHTML = '—'));
+      renderDiagnostico(el, { verdicto: 'pendiente', mensaje: '' });
+      Toast.fire({ text: 'Pruebas limpiadas', icon: 'info' });
+    }).catch(() => mostrarMsg(el, 'Error limpiando las pruebas', true));
+  }
+
+  function renderTestResult(el, test) {
+    const span = el.querySelector('.gramera-test-result[data-test="' + test.id + '"]');
+    if (!span) return;
+    if (test.esperado == null) { span.innerHTML = '—'; return; }
+
+    const sinLectura = test.leido == null;
+    const diff = sinLectura ? null : ((test.leido - test.esperado) / test.esperado) * 100;
+    const color = diff == null ? '' : (Math.abs(diff) < 1 ? 'text-success' : 'text-danger');
+
+    span.innerHTML =
+      'Esperado: <b>' + test.esperado.toFixed(3) + '</b> kg<br>' +
+      'Leído: <b>' + (sinLectura ? 'sin lectura' : test.leido.toFixed(3) + ' kg') + '</b>' +
+      (diff == null ? '' : '<br><span class="' + color + '">Δ ' + diff.toFixed(1) + '%</span>');
+  }
+
+  function renderDiagnostico(el, diag) {
+    const cont = el.querySelector('.gramera-test-diagnostico');
+    if (!cont) return;
+    if (!diag || !diag.verdicto) { cont.innerHTML = ''; return; }
+
+    const badges = {
+      confirmado: '<span class="badge bg-success"><i class="fa-solid fa-check"></i> Confirmado</span>',
+      factor_constante: '<span class="badge bg-warning text-dark"><i class="fa-solid fa-triangle-exclamation"></i> Factor de escala</span>',
+      desplazamiento: '<span class="badge bg-warning text-dark"><i class="fa-solid fa-triangle-exclamation"></i> Desplazamiento</span>',
+      incoherente: '<span class="badge bg-danger"><i class="fa-solid fa-xmark"></i> Incoherente</span>',
+      pendiente: '<span class="badge bg-secondary"><i class="fa-solid fa-hourglass-half"></i> Pendiente</span>'
+    };
+    cont.innerHTML = (badges[diag.verdicto] || '') + '<span class="ms-2">' + esc(diag.mensaje || '') + '</span>';
+  }
+
   function actualizarEstado(el) {
     const estadoEl = el.querySelector('.gramera-ui-estado');
     if (!estadoEl) return;
@@ -211,6 +329,9 @@ const GrameraUI = (function () {
       }
 
       estadoEl.innerHTML = html;
+
+      const details = el.querySelector('.gramera-test-details');
+      if (details && s.sinDatos) details.setAttribute('open', '');
     }).catch(() => {
       estadoEl.innerHTML = `<span class="badge bg-danger">Error consultando la gramera</span>`;
     });

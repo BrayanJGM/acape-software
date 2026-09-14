@@ -20,6 +20,12 @@ let readings = 0;
 let chunks = 0;
 let detectMode = false;
 
+// VALIDACION DE PESAJE: dos capturas de peso conocido para verificar el parser
+const tests = [
+  { id: 'test1', esperado: null, leido: null, raw: null, unidad: null, formato: null, bytes: null, hex: null, ts: null },
+  { id: 'test2', esperado: null, leido: null, raw: null, unidad: null, formato: null, bytes: null, hex: null, ts: null }
+];
+
 const PATRON_PESO = /(ST|US|OL)?([+-])?(\d+\.?\d*)\s*(kg|g|t|lb)\b/i;
 const PATRON_LINEA = new RegExp('^' + PATRON_PESO.source, 'i');
 const BAUD_CANDIDATOS = [9600, 4800, 2400, 19200, 1200, 38400];
@@ -265,6 +271,86 @@ function getConfig() {
   return config;
 }
 
+// DIAGNOSTICO DE LAS DOS CAPTURAS DE PESAJE
+function calcularDiagnostico() {
+  const t1 = tests.find((t) => t.id === 'test1');
+  const t2 = tests.find((t) => t.id === 'test2');
+  const datos1 = !!(t1 && t1.esperado != null && t1.leido != null && t1.esperado > 0);
+  const datos2 = !!(t2 && t2.esperado != null && t2.leido != null && t2.esperado > 0);
+
+  if (!datos1 && !datos2) {
+    return { verdicto: 'pendiente', mensaje: 'Captura al menos un peso conocido para validar.' };
+  }
+  if (!datos2) {
+    return { verdicto: 'pendiente', mensaje: 'Solo hay Test 1. Captura el Test 2 con otro peso distinto para comparar.' };
+  }
+
+  const f1 = t1.leido / t1.esperado;
+  const f2 = t2.leido / t2.esperado;
+  const dp1 = ((t1.leido - t1.esperado) / t1.esperado) * 100;
+  const dp2 = ((t2.leido - t2.esperado) / t2.esperado) * 100;
+  const deltaAbs = Math.abs((t1.leido - t1.esperado) - (t2.leido - t2.esperado));
+
+  let verdicto, mensaje;
+  if (Math.abs(dp1) < 1 && Math.abs(dp2) < 1) {
+    verdicto = 'confirmado';
+    mensaje = 'Ambos pesajes concuerdan (delta < 1%). Formato y magnitud del parser correctos. Listo para Pesar.';
+  } else if (Math.abs(f1 - f2) < 0.02) {
+    verdicto = 'factor_constante';
+    mensaje = 'El parser lee SIEMPRE ×' + f1.toFixed(3) + ' del peso real. Hay un error de escala/magnitud fijo.';
+  } else if (deltaAbs < 0.005) {
+    verdicto = 'desplazamiento';
+    mensaje = 'Diferencia constante de ' + (t1.leido - t1.esperado).toFixed(3) + ' kg en ambos test. Parece un offset fijo.';
+  } else {
+    verdicto = 'incoherente';
+    mensaje = 'Los datos no concuerdan de forma consistente. Revisa que los pesos escritos coincidan con la pantalla de la balanza y que sean distintos.';
+  }
+
+  return { verdicto, mensaje, factor: f1, deltaPct1: dp1, deltaPct2: dp2 };
+}
+
+function getTests() {
+  return { tests: tests.map((t) => ({ ...t })), diagnostico: calcularDiagnostico() };
+}
+
+// GUARDA UNA CAPTURA DE PESAJE CON EL PESO CONOCIDO (lo que muestra la balanza)
+function guardarTest(id, esperadoKg) {
+  const test = tests.find((t) => t.id === id);
+  if (!test) return { ok: false, error: 'Test no valido: ' + String(id) };
+
+  const esperado = Number(esperadoKg);
+  if (!Number.isFinite(esperado) || esperado <= 0) {
+    return { ok: false, error: 'Escribe un peso esperado valido (en kg, mayor que 0)' };
+  }
+
+  const lectura = lastReading || null;
+  test.esperado = esperado;
+  test.leido = lectura ? lectura.peso : null;
+  test.raw = lectura ? String(lectura.peso_raw != null ? lectura.peso_raw : lectura.peso) : null;
+  test.unidad = lectura ? lectura.unidad : null;
+  test.formato = lectura ? lectura.formato : null;
+  test.bytes = Array.from(binBuffer.slice(-64));
+  test.hex = binBuffer.slice(-64).toString('hex').toUpperCase();
+  test.ts = Date.now();
+
+  const res = getTests();
+  return { ok: true, test: { ...test }, diagnostico: res.diagnostico };
+}
+
+function limpiarTests() {
+  for (const t of tests) {
+    t.esperado = null;
+    t.leido = null;
+    t.raw = null;
+    t.unidad = null;
+    t.formato = null;
+    t.bytes = null;
+    t.hex = null;
+    t.ts = null;
+  }
+  return { ok: true, tests: getTests().tests };
+}
+
 // LISTAR PUERTOS SERIALES DISPONIBLES
 async function listPorts() {
   const ports = await SerialPort.list();
@@ -410,4 +496,4 @@ openPort().catch((err) => {
   console.log('Auto-conexión de gramera fallida:', err.message);
 });
 
-module.exports = { getPeso, getConfig, conectar, desconectar, listPorts, detectarBaud };
+module.exports = { getPeso, getConfig, getTests, guardarTest, limpiarTests, conectar, desconectar, listPorts, detectarBaud };

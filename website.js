@@ -952,6 +952,19 @@ router.get('/gramera/detectar', async (req, res) => {
   }
 });
 
+router.get('/gramera/test', (req, res) => {
+  res.json(gramera.getTests());
+});
+
+router.post('/gramera/test', (req, res) => {
+  const data = req.body || {};
+  res.json(gramera.guardarTest(data.id, data.esperado));
+});
+
+router.post('/gramera/test/reset', (req, res) => {
+  res.json(gramera.limpiarTests());
+});
+
 router.post('/token_validation', (req, res) => {
   const data = req.body.token;
   validator.start(data, (data, err) => {
