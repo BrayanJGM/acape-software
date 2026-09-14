@@ -1,0 +1,1 @@
+npx electron-packager . ACAPE --icon=icon.ico --overwrite --asar --platform=win32 --arch=ia32 --prune=true --out=buildsep --version-string.CompanyName=CE --version-string.FileDescription=CE --version-string.ProductName="ACAPE Software"

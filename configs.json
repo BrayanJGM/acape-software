@@ -1,0 +1,12 @@
+{
+	"printer": "Epson TM-T88V r1",
+	"pdf_route": "./print.pdf",
+	"whatsapp": {
+		"number": "573123950842",
+		"apikey": "1008185"
+	},
+	"gramera": {
+		"port": "COM3",
+		"baudRate": 9600
+	}
+}

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACAPE Administrativo</title>
+  <link rel="stylesheet" type="text/css" href="/scripts/bootstrap.css">
+  <link rel="stylesheet" type="text/css" href="/scripts/style.css">
+  <link rel="icon" href="/img/icon.jpg" type="image/jpeg">
+  <link rel="manifest" href="/services/manifest.json">
+</head>
+
+<body>
+  <div class="aplication">
+    <div class="final-navbar-phone">
+      <div class="navbar-title">Acape Administrativo</div>
+      <div class="navbar-toggler">
+        <div onclick="toggleNavigator()" class="navbar-toggler-icon toggler-icon">☰</div>
+      </div>
+    </div>
+    <nav class="navigator">
+      <div class="logos text-center">
+        <a href="#" class="navbar-brand-title">ACAPE Administrativo</a>
+      </div>
+      <ul class="list-navbar">
+        <li class="item-navbar">
+          <a class="nav-link active" aria-current="page" href="#/"><i class="fa-solid fa-house-chimney"></i> Principal</a>
+        </li>
+        <li class="item-navbar">
+          <a class="nav-link" href="#/movements"><i class="fa-solid fa-credit-card"></i> Movimientos</a>
+        </li>
+        <li class="item-navbar">
+          <a class="nav-link" href="#/contabilidad"><i class="fa-solid fa-calculator"></i> Contabilidad</a>
+        </li>
+        <li class="item-navbar">
+          <a class="nav-link" href="#/registros"><i class="fa-regular fa-folder-open"></i> Registros</a>
+        </li>
+        <li class="item-navbar">
+          <a class="nav-link" href="#/deudores"><i class="fa-solid fa-person-circle-minus"></i> Deudores</a>
+        </li>
+        <!-- METODOS DE PAGO -->
+        <li class="item-navbar">
+          <a href="#/wallets">
+            <i class="fa-solid fa-wallet"></i>
+            <div class="disabled-cel">Carteras</div>
+          </a>
+        </li>
+        <li class="item-navbar">
+          <a href="#/services">
+            <i class="fa-solid fa-building-user"></i>
+            <div class="disabled-cel">Servicios</div>
+          </a>
+        </li>
+        <li class="item-navbar">
+          <a href="#/configs">
+            <i class="fa-solid fa-gear"></i>
+            <div class="disabled-cel">Configuración</div>
+          </a>
+        </li>
+        <li class="item-navbar">
+          <a href="#/presupuestos">
+            <i class="fa-solid fa-money-bill-wave"></i>
+            <div class="disabled-cel">Presupuestos</div>
+          </a>
+        </li>
+
+
+        <!-- ------------------------------------------------ -->
+        <!-- ------------------ BODEGA NAVIGATOR -------------------- -->
+        <!-- ------------------------------------------------ -->
+
+        <li class="item-navbar">
+          <a class="item-navbar toggle-navbar" onclick="toggleNavbar('.administrator-menu')">
+            <i class="fa-solid fa-sliders"></i>
+            <div class="disabled-cel"><b>BODEGA</b></div>
+          </a>
+          <ul class="dropdown-menu-personalizado administrator-menu">
+
+            <li class="item-navbar">
+              <a href="#/bodega">
+                <i class="fa-solid fa-truck"></i>
+                <div class="disabled-cel">Bodega</div>
+              </a>
+            </li>
+            <li class="item-navbar">
+              <a href="#/facturacion-bodega">
+                <i class="fa-solid fa-truck-ramp-box"></i>
+                <div class="disabled-cel">Facturacion de bodega</div>
+              </a>
+            </li>
+
+            <li class="item-navbar">
+              <a class="nav-link" href="#/movements-bodega"><i class="fa-solid fa-credit-card"></i> Listado Bodega</a>
+            </li>
+
+            <li class="item-navbar">
+              <a class="nav-link" href="#/bodega-facturas"><i class="fa-solid fa-dollar"></i> Facturas</a>
+            </li>
+
+          </ul>
+        </li>
+
+        <!-- ------------------------------------------------ -->
+        <!-- ------------------ BODEGA NAVIGATOR -------------------- -->
+        <!-- ------------------------------------------------ -->
+
+
+
+        <li class="item-navbar">
+          <a class="item-navbar toggle-navbar" onclick="toggleNavbar('.administrator-menu')">
+            <i class="fa-solid fa-sliders"></i>
+            <div class="disabled-cel"><b>PRODUCCION</b></div>
+          </a>
+          <ul class="dropdown-menu-personalizado administrator-menu">
+
+            <li class="item-navbar">
+              <a href="#/produccion">
+                <i class="fa-solid fa-briefcase"></i>
+                <div class="disabled-cel">Produccion</div>
+              </a>
+            </li>
+            <li class="item-navbar">
+              <a href="#/formulacion">
+                <i class="fa-solid fa-book"></i>
+                <div class="disabled-cel">Formulacion</div>
+              </a>
+            </li>
+            <li class="item-navbar">
+              <a href="#/costos-productivos">
+                <i class="fa-solid fa-lightbulb"></i>
+                <div class="disabled-cel">Costos Prod</div>
+              </a>
+            </li>
+
+          </ul>
+        </li>
+
+
+
+      </ul>
+    </nav>
+  </div>
+  <div class="app active">
+    {{{body}}}
+  </div>
+  <div class="p-5"></div>
+  <div class="alerter"></div>
+  <br><br><br><br>
+  <!-- <script>
+    const server_data = {{{full_data}}};
+
+    let movements_data = setterArray(server_data.accounting.movements).slice(-3).reverse();
+    </script>
+    <script type="text/javascript">
+    const numberingMoney = "{{{accounting}}}";
+    const methodsPay = {{{ full_data }}}['methods'];
+    const pagosFijos = {{{ full_data }}}['pagosFijos'];
+
+    const pagosArray = setterArray(pagosFijos)
+    const methodsArray = setterArray(methodsPay);
+  </script> -->
+  <script src="/scripts/icons/js/all.js"></script>
+  <script src="/scripts/popup.js"></script>
+  <script src="/scripts/timems.js"></script>
+  <script src="/scripts/numbers.js"></script>
+  <script src="/scripts/axios.js"></script>
+  <script src="/APIS/SIOPS-router.js"></script>
+  <script src="/scripts/bootstrap.js"></script>
+  <script src="/scripts/alerts.js"></script>
+  <!-- ADMINISTRATOR JS -->
+  <script>
+  function toggleNavigator() {
+    document.querySelector('.navigator').classList.toggle('active');
+  }
+  </script>
+  <script src="/scripts-app/gramera-ui.js"></script>
+  <script src="/scripts-app/admin.js"></script>
+  {{{scripting}}}
+</body>
+
+</html>
