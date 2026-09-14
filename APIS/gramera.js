@@ -1,5 +1,8 @@
 // SERVICIO DE LECTURA DE GRAMERA (BALANZA) POR PUERTO SERIAL
-// Protocolo soportado: Trumax (WT/NT/GS + ST/US/OL + peso ASCII + unidad)
+// Protocolos soportados:
+//   - Trumax WT/NT/GS (ST/US/OL + peso ASCII + unidad)
+//   - Trumax ONIX III PRO (ACS-30E): tramas hexaadecimales 0x30-0x39 con
+//     numero de chequeo EAN-13 y cierre 0D 0A (STX 0x02 + Adr + campos)
 const { SerialPort } = require('serialport');
 const fs = require('fs');
 const path = require('path');
@@ -9,6 +12,8 @@ const configsPath = path.join(__dirname, './../configs.json');
 let config = loadConfig();
 let port = null;
 let buffer = '';
+let binBuffer = Buffer.alloc(0);
+let ultimaTrama = null;
 let lastReading = null;
 let lastRaw = [];
 let readings = 0;
@@ -64,6 +69,66 @@ function parseLine(line) {
   return construirLectura(line.match(PATRON_LINEA));
 }
 
+// CALCULA EL DIGITO DE CHEQUEO EAN-13 (algoritmo GS1 que usa la Onix)
+function ean13Check(digits) {
+  let sum = 0;
+  for (let i = 0; i < digits.length; i++) {
+    const fromRight = digits.length - 1 - i;
+    sum += digits[i] * (fromRight % 2 === 0 ? 3 : 1);
+  }
+  return (10 - (sum % 10)) % 10;
+}
+
+// PARSER DE LAS TRAMAS HEXADECIMALES DE LA TRUMAX ONIX III PRO (ACS-30E).
+// Cada digito viaja como un byte (0x00-0x09, es decir '0'-'9' en hexa).
+// Cada grupo numerico cierra con el numero de chequeo EAN-13 del grupo.
+//   Formato 2 (con precio, segun manual): STX Adr P4 CK W5 CK 0D 0A
+//     -> peso en bytes 8-12 (1-based), chequeo en byte 13 (trailing)
+//   Formato 1 (solo peso) / variantes: se sondean varias ventanas de 5
+//     bytes y solo se acepta la que valide el chequeo EAN-13.
+function parseOnix(buf) {
+  if (!buf || buf.length < 8 || buf[0] !== 0x02) return null;
+
+  const g = Array.from(buf);
+  const esDigito = (v) => v >= 0 && v <= 9;
+
+  const cands = [
+    // Formato 2 manual: peso en bytes 8-12 (1-based): g[7..11], check g[12]
+    { peso: g.slice(7, 12), check: g[12], embebido: false },
+    // Variantes probables de Formato 1: 5 bytes con chequeo embebido (5to byte)
+    { peso: g.slice(4, 9), check: null, embebido: true },
+    { peso: g.slice(2, 7), check: null, embebido: true },
+    { peso: g.slice(3, 8), check: null, embebido: true },
+    { peso: g.slice(5, 10), check: null, embebido: true },
+    { peso: g.slice(6, 11), check: null, embebido: true }
+  ];
+
+  for (const cand of cands) {
+    const digitos = cand.peso;
+    if (digitos.length < 5 || digitos.some((v) => !esDigito(v))) continue;
+
+    const dato = cand.embebido ? digitos.slice(0, 4) : digitos;
+    const checkEsperado = ean13Check(dato);
+    const checkReal = cand.embebido ? digitos[4] : cand.check;
+    if (checkReal === undefined || checkReal !== checkEsperado) continue;
+
+    let gramos = 0;
+    for (const d of dato) gramos = gramos * 10 + d;
+    const pesoKg = gramos / 1000;
+
+    return {
+      peso: pesoKg,
+      peso_raw: pesoKg.toFixed(3),
+      unidad: 'kg',
+      estable: true,
+      sobrecarga: pesoKg > 40,
+      formato: 'onix'
+    };
+  }
+
+  return null;
+}
+
 function connect() {
   try {
     port = new SerialPort({
@@ -83,16 +148,44 @@ function connect() {
 
       chunks++;
       buffer += texto;
-      const lines = buffer.split(/[\r\n]+/);
-      buffer = lines.pop();
+      if (buffer.length > 5000) buffer = buffer.slice(-1000);
 
-      lines.forEach((line) => {
-        const limpia = line.trim();
-        if (!limpia) return;
+      // Acumulacion binaria: separamos tramas por salto de linea (0x0A)
+      binBuffer = Buffer.concat([binBuffer, chunk]);
+      if (binBuffer.length > 6000) binBuffer = binBuffer.slice(-2000);
 
-        lastRaw.push(limpia);
-        if (lastRaw.length > 8) lastRaw.shift();
-        console.log('GRAMERA RAW:', JSON.stringify(limpia));
+      let idx;
+      while ((idx = binBuffer.indexOf(0x0a)) !== -1) {
+        let seg = binBuffer.slice(0, idx);
+        binBuffer = binBuffer.slice(idx + 1);
+        if (seg.length && seg[seg.length - 1] === 0x0d) seg = seg.slice(0, -1);
+        if (!seg.length) continue;
+
+        const clave = seg.toString('hex').toUpperCase();
+
+        // Paso 1: Onix (trama hexaadecimal) validada por chequeo EAN-13
+        const onix = parseOnix(seg);
+        if (onix) {
+          if (clave !== ultimaTrama) {
+            ultimaTrama = clave;
+            console.log('GRAMERA ONIX:', JSON.stringify({ hex: clave, bytes: Array.from(seg), peso: onix.peso }));
+          }
+          readings++;
+          lastReading = { ...onix, timestamp: Date.now() };
+          console.log('GRAMERA PESO:', JSON.stringify(onix));
+          continue;
+        }
+
+        // Paso 2: trama ASCII
+        const limpia = seg.toString('ascii').trim();
+        if (!limpia) continue;
+
+        if (clave !== ultimaTrama) {
+          ultimaTrama = clave;
+          lastRaw.push(limpia);
+          if (lastRaw.length > 8) lastRaw.shift();
+          console.log('GRAMERA CAMBIO:', JSON.stringify(limpia));
+        }
 
         const reading = parseLine(limpia);
         if (reading) {
@@ -100,7 +193,7 @@ function connect() {
           lastReading = { ...reading, timestamp: Date.now() };
           console.log('GRAMERA PESO:', JSON.stringify(reading));
         }
-      });
+      }
 
       // Tramas continuas sin salto de linea: "000.560kg000.560kg"
       if (buffer.length > 60) {
@@ -151,6 +244,7 @@ function getPeso() {
   }
 
   const bufferRaw = buffer.length > 40 ? buffer.slice(-40) : buffer;
+  const bytesRaw = binBuffer.length > 40 ? binBuffer.slice(-40) : binBuffer;
 
   return {
     conectada,
@@ -162,7 +256,8 @@ function getPeso() {
     chunks,
     baudRate: config.baudRate,
     bufferRaw,
-    hex: Buffer.from(bufferRaw, 'ascii').toString('hex').toUpperCase()
+    bytes: Array.from(bytesRaw),
+    hex: bytesRaw.toString('hex').toUpperCase()
   };
 }
 
@@ -209,6 +304,8 @@ async function conectar({ port: puerto, baudRate: baud }) {
   disconnect();
   lastReading = null;
   buffer = '';
+  binBuffer = Buffer.alloc(0);
+  ultimaTrama = null;
   lastRaw = [];
   readings = 0;
   chunks = 0;
@@ -234,6 +331,8 @@ function desconectar() {
   disconnect();
   lastReading = null;
   buffer = '';
+  binBuffer = Buffer.alloc(0);
+  ultimaTrama = null;
   lastRaw = [];
   readings = 0;
   chunks = 0;
@@ -291,6 +390,8 @@ async function detectarBaud() {
   config.baudRate = mejor.puntos > 0 ? mejor.baud : original;
   saveConfig(config);
   buffer = '';
+  binBuffer = Buffer.alloc(0);
+  ultimaTrama = null;
   lastReading = null;
   lastRaw = [];
   readings = 0;

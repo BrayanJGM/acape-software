@@ -195,11 +195,12 @@ const GrameraUI = (function () {
         const ultima = Array.isArray(s.lastRaw) && s.lastRaw.length ? s.lastRaw[s.lastRaw.length - 1] : null;
         const muestra = String(s.bufferRaw || '').replace(/[^\x20-\x7E]/g, '.');
         const hexa = String(s.hex || '');
+        const dec = Array.isArray(s.bytes) ? s.bytes.join(',') : '';
         html = `
           <span class="badge bg-warning text-dark"><i class="fa-solid fa-plug-circle-exclamation"></i> Puerto abierto, sin lectura</span>
           <span class="ms-2 pequeña">Baud ${s.baudRate || '?'}. Revisa el cable y el modo CONTINUA de la balanza.</span>` +
           (ultima ? `<div class="small text-muted mt-2">Tramas recibidas (${s.chunks || 0}): <code>${esc(ultima)}</code> ...</div>` : '') +
-          (muestra ? `<div class="small text-muted mt-1">Bytes: ${s.chunks || 0} fragmentos — <code>${esc(muestra)}</code><br><code>${esc(hexa)}</code></div>` : '');
+          (muestra ? `<div class="small text-muted mt-1">Bytes: ${s.chunks || 0} fragmentos — <code>${esc(muestra)}</code><br><code>${esc(hexa)}</code><br><code>${esc(dec)}</code></div>` : '');
       } else {
         const badge = s.estable
           ? '<span class="badge bg-success">Estable</span>'
