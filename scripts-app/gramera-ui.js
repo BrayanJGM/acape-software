@@ -64,6 +64,14 @@ const GrameraUI = (function () {
             <button class="btn btn-sm btn-outline-secondary mt-2 gramera-test-reset">Limpiar pruebas</button>
           </div>
         </details>
+
+        <details class="border rounded p-3 mt-2 gramera-trazas-details">
+          <summary class="fw-bold" style="cursor:pointer"><i class="fa-solid fa-list-ul"></i> Últimas tramas (diagnóstico)</summary>
+          <div class="mt-2">
+            <div class="gramera-ui-trazas small"></div>
+            <button class="btn btn-sm btn-outline-secondary mt-2 gramera-trazas-refrescar">Actualizar</button>
+          </div>
+        </details>
         <p class="gramera-ui-msg mt-2 mb-0 small text-muted"></p>
       </div>
     `;
@@ -84,6 +92,7 @@ const GrameraUI = (function () {
     el.querySelector('.gramera-ui-actualizar').addEventListener('click', () => cargarTodo(el, true));
 
     el.querySelector('.gramera-test-reset').addEventListener('click', () => limpiarTests(el));
+    el.querySelector('.gramera-trazas-refrescar').addEventListener('click', () => cargarTrazas(el));
     el.querySelectorAll('.gramera-test-capturar').forEach((btn) => {
       btn.addEventListener('click', () => capturarTest(el, btn.dataset.test));
     });
@@ -124,6 +133,7 @@ const GrameraUI = (function () {
       renderPuertos(el, ports, actual);
       actualizarEstado(el);
       cargarTests(el);
+      cargarTrazas(el);
     }).catch((err) => {
       mostrarMsg(el, 'Error consultando la gramera: ' + (err.response ? err.response.data.message : err.message), true);
     });
@@ -234,6 +244,30 @@ const GrameraUI = (function () {
       });
       renderDiagnostico(el, diagnostico);
     }).catch(() => {});
+  }
+
+  function cargarTrazas(el) {
+    axios.get('/gramera/trazas').then((resp) => {
+      const cont = el.querySelector('.gramera-ui-trazas');
+      if (!cont) return;
+      const trazas = (resp.data && resp.data.trazas) || [];
+      if (!trazas.length) {
+        cont.innerHTML = '<span class="text-muted">Aún no llegan tramas completas (revisa cable, modo CONTINUA y que esté conectada).</span>';
+        return;
+      }
+      cont.innerHTML = trazas.slice().reverse().slice(0, 10).map((t) => {
+        const hexa = String(t.hex || '');
+        const by = Array.isArray(t.bytes) && t.bytes.length ? '[' + t.bytes.join(',') + ']' : '';
+        return '<div class="border rounded p-1 mb-1">' +
+          '<code style="word-break:break-all">' + esc(hexa) + '</code> ' +
+          '<span class="text-muted">' + esc(by) + '</span> ' +
+          '<button type="button" class="btn btn-xs btn-outline-secondary gramera-test-copiar" data-copiar="' + esc(hexa) + '">Copiar</button>' +
+          '</div>';
+      }).join('') + '<div class="text-muted mt-1">Últimas ' + trazas.length + ' de máximo 20 tramas almacenadas.</div>';
+    }).catch(() => {
+      const cont = el.querySelector('.gramera-ui-trazas');
+      if (cont) cont.innerHTML = '<span class="text-danger">Error consultando las trazas</span>';
+    });
   }
 
   function capturarTest(el, testId) {
