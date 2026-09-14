@@ -93,17 +93,40 @@ function ean13Check(digits) {
 // PARSER DE LAS TRAMAS HEXADECIMALES DE LA TRUMAX ONIX III PRO (ACS-30E).
 // Cada digito viaja como un byte (0x00-0x09).
 // Estrategias, en orden de confianza:
-//   1) ANCLA FINAL (Formato 2 del manual): los ultimos 6 bytes del frame son
-//      [W5][CK] (5 digitos de peso + chequeo EAN-13 del grupo).
-//   2) BARRIDO DESLIZANTE: se prueban todas las ventanas de 5 bytes con
-//      chequeo trailing (byte siguiente) o embebido (5to byte), filtrando por
-//      plausibilidad (0..60 kg) y prefiriendo peso no-cero y cabecera a final.
+//   1) TRAMA UNIFICADA (layout real validado con tramas reales): 13 bytes,
+//      STX 0x02, y el ultimo byte es el chequeo EAN-13 de los 12 digitos
+//      completos [0..11]. El peso son los 4 digitos de gramos en [8..11].
+//   2) ANCLA FINAL (Formato 2 del manual): los ultimos 6 bytes son [W5][CK]
+//      (5 digitos de peso + chequeo EAN-13 del grupo).
+//   3) BARRIDO DESLIZANTE: ventanas de 5 bytes con chequeo trailing o
+//      embebido, filtrando por plausibilidad (0..60 kg).
 function parseOnix(buf) {
   if (!buf || buf.length < 8 || buf[0] !== 0x02) return null;
 
   const g = Array.from(buf);
   const esDigito = (v) => v >= 0 && v <= 9;
   const CAP = 60000;
+
+  // 1) TRAMA UNIFICADA (layout real ACS-30E)
+  if (g.length === 13 && esDigito(g[12]) && ean13Check(g.slice(0, 12)) === g[12]) {
+    const w5 = g.slice(7, 12);
+    if (w5.every(esDigito)) {
+      const gramos = w5.reduce((acc, d) => acc * 10 + d, 0);
+      if (gramos >= 0 && gramos <= CAP) {
+        const pesoKg = gramos / 1000;
+        return {
+          peso: pesoKg,
+          peso_raw: pesoKg.toFixed(3),
+          unidad: 'kg',
+          estable: true,
+          sobrecarga: gramos > 40000,
+          formato: 'onix'
+        };
+      }
+    }
+  }
+
+  // Estrategias 2 y 3 (otros layouts / Formato 2 del manual)
   const candidatos = [];
 
   const agregar = (gramos, inicio, tipo) => {
@@ -111,7 +134,7 @@ function parseOnix(buf) {
   };
   const aGramos = (digitos) => digitos.reduce((acc, d) => acc * 10 + d, 0);
 
-  // 1) Ancla final: ultimo grupo [W5][CK] (Formato 2 del manual)
+  // 2) Ancla final: ultimo grupo [W5][CK] (Formato 2 del manual)
   if (g.length >= 7) {
     const w5 = g.slice(-6, -1);
     const ck = g[g.length - 1];
@@ -120,7 +143,7 @@ function parseOnix(buf) {
     }
   }
 
-  // 2) Barrido deslizante de ventanas de 5 bytes
+  // 3) Barrido deslizante de ventanas de 5 bytes
   for (let i = 0; i + 5 <= g.length; i++) {
     const win = g.slice(i, i + 5);
     if (win.some((v) => !esDigito(v))) continue;

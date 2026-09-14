@@ -272,10 +272,19 @@ const GrameraUI = (function () {
 
   function capturarTest(el, testId) {
     const input = el.querySelector('.gramera-test-input[data-test="' + testId + '"]');
-    const esperado = input ? Number(input.value) : NaN;
+    let esperado = input ? Number(input.value) : NaN;
     if (!Number.isFinite(esperado) || esperado <= 0) {
       return mostrarMsg(el, 'Escribe en el Test ' + (testId === 'test1' ? '1' : '2') + ' el peso que muestra la balanza (kg).', true);
     }
+
+    // Si escribieron gramos (ej. 2395 en vez de 2.395) lo convertimos a kg
+    let convertidoG = false;
+    if (esperado >= 1000) {
+      esperado = esperado / 1000;
+      convertidoG = true;
+      Toast.fire({ text: 'Escribiste gramos: lo convertí a ' + esperado.toFixed(3) + ' kg.', icon: 'info' });
+    }
+    if (convertidoG && input) input.value = String(esperado).replace('.', ',');
 
     axios.post('/gramera/test', { id: testId, esperado }).then((resp) => {
       const data = resp.data;
