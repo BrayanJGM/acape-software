@@ -956,6 +956,10 @@ router.get('/gramera/test', (req, res) => {
   res.json(gramera.getTests());
 });
 
+router.get('/gramera/trazas', (req, res) => {
+  res.json(gramera.getTrazas());
+});
+
 router.post('/gramera/test', (req, res) => {
   const data = req.body || {};
   res.json(gramera.guardarTest(data.id, data.esperado));

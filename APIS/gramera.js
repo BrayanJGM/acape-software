@@ -14,11 +14,16 @@ let port = null;
 let buffer = '';
 let binBuffer = Buffer.alloc(0);
 let ultimaTrama = null;
+let ultimoBytes = Buffer.alloc(0);
+let ultimaTramaHex = '';
 let lastReading = null;
 let lastRaw = [];
 let readings = 0;
 let chunks = 0;
 let detectMode = false;
+
+// TRAZAS: ultimas tramas completas recibidas (para diagnostico remoto)
+const trazas = [];
 
 // VALIDACION DE PESAJE: dos capturas de peso conocido para verificar el parser
 const tests = [
@@ -86,53 +91,76 @@ function ean13Check(digits) {
 }
 
 // PARSER DE LAS TRAMAS HEXADECIMALES DE LA TRUMAX ONIX III PRO (ACS-30E).
-// Cada digito viaja como un byte (0x00-0x09, es decir '0'-'9' en hexa).
-// Cada grupo numerico cierra con el numero de chequeo EAN-13 del grupo.
-//   Formato 2 (con precio, segun manual): STX Adr P4 CK W5 CK 0D 0A
-//     -> peso en bytes 8-12 (1-based), chequeo en byte 13 (trailing)
-//   Formato 1 (solo peso) / variantes: se sondean varias ventanas de 5
-//     bytes y solo se acepta la que valide el chequeo EAN-13.
+// Cada digito viaja como un byte (0x00-0x09).
+// Estrategias, en orden de confianza:
+//   1) ANCLA FINAL (Formato 2 del manual): los ultimos 6 bytes del frame son
+//      [W5][CK] (5 digitos de peso + chequeo EAN-13 del grupo).
+//   2) BARRIDO DESLIZANTE: se prueban todas las ventanas de 5 bytes con
+//      chequeo trailing (byte siguiente) o embebido (5to byte), filtrando por
+//      plausibilidad (0..60 kg) y prefiriendo peso no-cero y cabecera a final.
 function parseOnix(buf) {
   if (!buf || buf.length < 8 || buf[0] !== 0x02) return null;
 
   const g = Array.from(buf);
   const esDigito = (v) => v >= 0 && v <= 9;
+  const CAP = 60000;
+  const candidatos = [];
 
-  const cands = [
-    // Formato 2 manual: peso en bytes 8-12 (1-based): g[7..11], check g[12]
-    { peso: g.slice(7, 12), check: g[12], embebido: false },
-    // Variantes probables de Formato 1: 5 bytes con chequeo embebido (5to byte)
-    { peso: g.slice(4, 9), check: null, embebido: true },
-    { peso: g.slice(2, 7), check: null, embebido: true },
-    { peso: g.slice(3, 8), check: null, embebido: true },
-    { peso: g.slice(5, 10), check: null, embebido: true },
-    { peso: g.slice(6, 11), check: null, embebido: true }
-  ];
+  const agregar = (gramos, inicio, tipo) => {
+    if (gramos >= 0 && gramos <= CAP) candidatos.push({ gramos, inicio, tipo });
+  };
+  const aGramos = (digitos) => digitos.reduce((acc, d) => acc * 10 + d, 0);
 
-  for (const cand of cands) {
-    const digitos = cand.peso;
-    if (digitos.length < 5 || digitos.some((v) => !esDigito(v))) continue;
-
-    const dato = cand.embebido ? digitos.slice(0, 4) : digitos;
-    const checkEsperado = ean13Check(dato);
-    const checkReal = cand.embebido ? digitos[4] : cand.check;
-    if (checkReal === undefined || checkReal !== checkEsperado) continue;
-
-    let gramos = 0;
-    for (const d of dato) gramos = gramos * 10 + d;
-    const pesoKg = gramos / 1000;
-
-    return {
-      peso: pesoKg,
-      peso_raw: pesoKg.toFixed(3),
-      unidad: 'kg',
-      estable: true,
-      sobrecarga: pesoKg > 40,
-      formato: 'onix'
-    };
+  // 1) Ancla final: ultimo grupo [W5][CK] (Formato 2 del manual)
+  if (g.length >= 7) {
+    const w5 = g.slice(-6, -1);
+    const ck = g[g.length - 1];
+    if (w5.every(esDigito) && esDigito(ck) && ean13Check(w5) === ck) {
+      agregar(aGramos(w5), 'final', 'trailing');
+    }
   }
 
-  return null;
+  // 2) Barrido deslizante de ventanas de 5 bytes
+  for (let i = 0; i + 5 <= g.length; i++) {
+    const win = g.slice(i, i + 5);
+    if (win.some((v) => !esDigito(v))) continue;
+
+    // trailing: el byte siguiente valida el grupo de 5 digitos
+    const chkTrail = g[i + 5];
+    if (chkTrail !== undefined && ean13Check(win) === chkTrail) {
+      agregar(aGramos(win), i, 'trailing');
+    }
+
+    // embebido: el 5to byte valida los 4 primeros
+    if (win[4] !== undefined && ean13Check(win.slice(0, 4)) === win[4]) {
+      agregar(aGramos(win.slice(0, 4)), i, 'embebido');
+    }
+  }
+
+  if (!candidatos.length) return null;
+
+  candidatos.sort((a, b) => {
+    // 1) trailing (formato conocido) antes que embebido
+    if (a.tipo !== b.tipo) return a.tipo === 'trailing' ? -1 : 1;
+    // 2) peso no-cero antes (evita falsos positivos del precio en ceros)
+    if ((a.gramos > 0) !== (b.gramos > 0)) return a.gramos > 0 ? -1 : 1;
+    // 3) ventana mas cerca del final del frame (el peso cierra la trama)
+    const fa = a.inicio === 'final' ? g.length : a.inicio + 5;
+    const fb = b.inicio === 'final' ? g.length : b.inicio + 5;
+    return (g.length - fa) - (g.length - fb);
+  });
+
+  const mejor = candidatos[0];
+  const pesoKg = mejor.gramos / 1000;
+
+  return {
+    peso: pesoKg,
+    peso_raw: pesoKg.toFixed(3),
+    unidad: 'kg',
+    estable: true,
+    sobrecarga: mejor.gramos > 40000,
+    formato: 'onix'
+  };
 }
 
 function connect() {
@@ -168,6 +196,12 @@ function connect() {
         if (!seg.length) continue;
 
         const clave = seg.toString('hex').toUpperCase();
+
+        // Rastreo de la ultima trama completa recibida (diagnostico/test)
+        ultimoBytes = seg;
+        ultimaTramaHex = clave;
+        trazas.push({ ts: Date.now(), hex: clave, bytes: Array.from(seg) });
+        if (trazas.length > 20) trazas.shift();
 
         // Paso 1: Onix (trama hexaadecimal) validada por chequeo EAN-13
         const onix = parseOnix(seg);
@@ -329,8 +363,8 @@ function guardarTest(id, esperadoKg) {
   test.raw = lectura ? String(lectura.peso_raw != null ? lectura.peso_raw : lectura.peso) : null;
   test.unidad = lectura ? lectura.unidad : null;
   test.formato = lectura ? lectura.formato : null;
-  test.bytes = Array.from(binBuffer.slice(-64));
-  test.hex = binBuffer.slice(-64).toString('hex').toUpperCase();
+  test.bytes = Array.from(ultimoBytes.length ? ultimoBytes : binBuffer.slice(-64));
+  test.hex = (ultimoBytes.length ? ultimoBytes : binBuffer.slice(-64)).toString('hex').toUpperCase();
   test.ts = Date.now();
 
   const res = getTests();
@@ -349,6 +383,11 @@ function limpiarTests() {
     t.ts = null;
   }
   return { ok: true, tests: getTests().tests };
+}
+
+// ULTIMAS TRAMAS COMPLETAS RECIBIDAS (diagnostico remoto)
+function getTrazas() {
+  return { trazas: trazas.map((t) => ({ ...t })) };
 }
 
 // LISTAR PUERTOS SERIALES DISPONIBLES
@@ -496,4 +535,4 @@ openPort().catch((err) => {
   console.log('Auto-conexión de gramera fallida:', err.message);
 });
 
-module.exports = { getPeso, getConfig, getTests, guardarTest, limpiarTests, conectar, desconectar, listPorts, detectarBaud };
+module.exports = { getPeso, getConfig, getTests, guardarTest, limpiarTests, getTrazas, conectar, desconectar, listPorts, detectarBaud };

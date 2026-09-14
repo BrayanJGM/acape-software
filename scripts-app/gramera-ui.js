@@ -93,6 +93,11 @@ const GrameraUI = (function () {
       });
     });
 
+    el.addEventListener('click', (e) => {
+      const btn = e.target.closest('.gramera-test-copiar');
+      if (btn) copiarTexto(el, btn.dataset.copiar || '');
+    });
+
     cargarTodo(el);
 
     const timer = setInterval(() => {
@@ -276,10 +281,31 @@ const GrameraUI = (function () {
     const diff = sinLectura ? null : ((test.leido - test.esperado) / test.esperado) * 100;
     const color = diff == null ? '' : (Math.abs(diff) < 1 ? 'text-success' : 'text-danger');
 
+    const frameHex = String(test.hex || '').trim();
+    const frameHtml = frameHex
+      ? '<br><code class="small mt-1 d-block" style="word-break:break-all">' + esc(frameHex) + '</code>' +
+        '<button type="button" class="btn btn-xs btn-outline-secondary mt-1 gramera-test-copiar" data-copiar="' + esc(frameHex) + '">Copiar trama</button>'
+      : '';
+
     span.innerHTML =
       'Esperado: <b>' + test.esperado.toFixed(3) + '</b> kg<br>' +
       'Leído: <b>' + (sinLectura ? 'sin lectura' : test.leido.toFixed(3) + ' kg') + '</b>' +
-      (diff == null ? '' : '<br><span class="' + color + '">Δ ' + diff.toFixed(1) + '%</span>');
+      (diff == null ? '' : '<br><span class="' + color + '">Δ ' + diff.toFixed(1) + '%</span>') +
+      frameHtml;
+  }
+
+  function copiarTexto(el, texto) {
+    const done = () => Toast.fire({ text: 'Trama copiada', icon: 'success' });
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(done).catch(() => mostrarMsg(el, 'No se pudo copiar la trama', true));
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); done(); } catch (err) { mostrarMsg(el, 'No se pudo copiar la trama', true); }
+      document.body.removeChild(ta);
+    }
   }
 
   function renderDiagnostico(el, diag) {
