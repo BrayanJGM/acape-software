@@ -914,6 +914,11 @@ router.get('/gramera/config', (req, res) => {
   res.json(gramera.getConfig());
 });
 
+router.post('/gramera/debug', (req, res) => {
+  const { activo } = req.body || {};
+  res.json(gramera.setDebug(!!activo));
+});
+
 router.get('/gramera/ports', async (req, res) => {
   try {
     const ports = await gramera.listPorts();

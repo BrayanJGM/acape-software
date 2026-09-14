@@ -14,6 +14,11 @@ const GrameraUI = (function () {
         <p>Conecta la gramera (Trumax, RS-232) seleccionando su puerto.</p>
         <div class="gramera-ui-estado mb-3 text-muted">Consultando estado...</div>
 
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input gramera-ui-debug" type="checkbox" id="grameraDebug">
+          <label class="form-check-label small" for="grameraDebug">Registrar en consola (diagnóstico)</label>
+        </div>
+
         <label class="fw-bold"><i class="fa-solid fa-list"></i> Puertos detectados</label>
         <p class="small text-muted">Los puertos USB (💡) son los que suelen usar las grameras.</p>
         <div class="gramera-ui-puertos mb-2"></div>
@@ -93,6 +98,12 @@ const GrameraUI = (function () {
 
     el.querySelector('.gramera-test-reset').addEventListener('click', () => limpiarTests(el));
     el.querySelector('.gramera-trazas-refrescar').addEventListener('click', () => cargarTrazas(el));
+    el.querySelector('.gramera-ui-debug').addEventListener('change', (e) => {
+      const activo = e.target.checked;
+      axios.post('/gramera/debug', { activo }).then((resp) => {
+        Toast.fire({ text: resp.data.mensaje || 'Actualizado', icon: activo ? 'info' : 'success' });
+      }).catch(() => Toast.fire({ text: 'Error actualizando los logs', icon: 'error' }));
+    });
     el.querySelectorAll('.gramera-test-capturar').forEach((btn) => {
       btn.addEventListener('click', () => capturarTest(el, btn.dataset.test));
     });
@@ -127,6 +138,7 @@ const GrameraUI = (function () {
       const { ports, actual } = respPorts.data;
 
       el.querySelector('.gramera-ui-baud').value = config.baudRate;
+      el.querySelector('.gramera-ui-debug').checked = !!config.debug;
 
       if (conMensaje) mostrarMsg(el, 'Puertos actualizados.');
 

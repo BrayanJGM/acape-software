@@ -11,6 +11,12 @@ const configsPath = path.join(__dirname, './../configs.json');
 
 let config = loadConfig();
 let port = null;
+let debug = !!config.debug;
+
+// LOGGER CONTROLADO POR LA UI: imprime SOLO si debug esta activado
+const dbg = (...args) => {
+  if (debug) console.log(...args);
+};
 let buffer = '';
 let binBuffer = Buffer.alloc(0);
 let ultimaTrama = null;
@@ -231,11 +237,11 @@ function connect() {
         if (onix) {
           if (clave !== ultimaTrama) {
             ultimaTrama = clave;
-            console.log('GRAMERA ONIX:', JSON.stringify({ hex: clave, bytes: Array.from(seg), peso: onix.peso }));
+            dbg('GRAMERA ONIX:', JSON.stringify({ hex: clave, bytes: Array.from(seg), peso: onix.peso }));
           }
           readings++;
           lastReading = { ...onix, timestamp: Date.now() };
-          console.log('GRAMERA PESO:', JSON.stringify(onix));
+          dbg('GRAMERA PESO:', JSON.stringify(onix));
           continue;
         }
 
@@ -247,14 +253,14 @@ function connect() {
           ultimaTrama = clave;
           lastRaw.push(limpia);
           if (lastRaw.length > 8) lastRaw.shift();
-          console.log('GRAMERA CAMBIO:', JSON.stringify(limpia));
+          dbg('GRAMERA CAMBIO:', JSON.stringify(limpia));
         }
 
         const reading = parseLine(limpia);
         if (reading) {
           readings++;
           lastReading = { ...reading, timestamp: Date.now() };
-          console.log('GRAMERA PESO:', JSON.stringify(reading));
+          dbg('GRAMERA PESO:', JSON.stringify(reading));
         }
       }
 
@@ -325,7 +331,15 @@ function getPeso() {
 }
 
 function getConfig() {
-  return config;
+  return { ...config, debug };
+}
+
+// ACTIVA/DESACTIVA LOS LOGS DE CONSOLA (diagnostico) desde la interfaz
+function setDebug(activo) {
+  debug = !!activo;
+  config.debug = debug;
+  saveConfig(config);
+  return { config: getConfig(), mensaje: debug ? 'Logs de gramera activados' : 'Logs de gramera silenciados' };
 }
 
 // DIAGNOSTICO DE LAS DOS CAPTURAS DE PESAJE
@@ -527,7 +541,7 @@ async function detectarBaud() {
 
     const puntos = puntuarTramas(texto);
     resultado.push({ baud, puntos, muestra: texto.slice(0, 60) });
-    console.log(`Baud ${baud}: ${puntos} pts | ${JSON.stringify(texto.slice(0, 60))}`);
+    dbg(`Baud ${baud}: ${puntos} pts | ${JSON.stringify(texto.slice(0, 60))}`);
 
     if (puntos > mejor.puntos) {
       mejor = { baud, puntos, muestra: texto.slice(0, 60) };
@@ -558,4 +572,4 @@ openPort().catch((err) => {
   console.log('Auto-conexión de gramera fallida:', err.message);
 });
 
-module.exports = { getPeso, getConfig, getTests, guardarTest, limpiarTests, getTrazas, conectar, desconectar, listPorts, detectarBaud };
+module.exports = { getPeso, getConfig, setDebug, getTests, guardarTest, limpiarTests, getTrazas, conectar, desconectar, listPorts, detectarBaud };
