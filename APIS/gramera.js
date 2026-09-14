@@ -10,6 +10,9 @@ let config = loadConfig();
 let port = null;
 let buffer = '';
 let lastReading = null;
+let lastRaw = [];
+let readings = 0;
+let chunks = 0;
 
 function loadConfig() {
   try {
@@ -64,13 +67,24 @@ function connect() {
     });
 
     port.on('data', (chunk) => {
-      buffer += chunk.toString('ascii');
+      const texto = chunk.toString('ascii');
+      chunks++;
+      buffer += texto;
       const lines = buffer.split(/[\r\n]+/);
       buffer = lines.pop();
       lines.forEach((line) => {
-        const reading = parseLine(line.trim());
+        const limpia = line.trim();
+        if (!limpia) return;
+
+        lastRaw.push(limpia);
+        if (lastRaw.length > 8) lastRaw.shift();
+        console.log('GRAMERA RAW:', JSON.stringify(limpia));
+
+        const reading = parseLine(limpia);
         if (reading) {
+          readings++;
           lastReading = { ...reading, timestamp: Date.now() };
+          console.log('GRAMERA PESO:', JSON.stringify(reading));
         }
       });
     });
@@ -81,10 +95,6 @@ function connect() {
 
     port.on('open', () => {
       console.log(`Gramera conectada en ${config.port}`);
-    });
-
-    port.open((err) => {
-      if (err) console.log('Error abriendo gramera:', err.message);
     });
   } catch (err) {
     console.log('No se pudo inicializar la gramera:', err.message);
@@ -103,15 +113,22 @@ function getPeso() {
   const lectura = lastReading || { peso: 0, peso_raw: "0", unidad: "kg", estable: false, sobrecarga: false };
 
   let sinDatos = false;
-  if (conectada && lastReading && lastReading.timestamp) {
-    sinDatos = (Date.now() - lastReading.timestamp) > 8000;
+  if (conectada) {
+    if (lastReading && lastReading.timestamp) {
+      sinDatos = (Date.now() - lastReading.timestamp) > 8000;
+    } else {
+      sinDatos = true;
+    }
   }
 
   return {
     conectada,
     sinDatos,
     ...lectura,
-    timestamp: lastReading ? lastReading.timestamp : null
+    timestamp: lastReading ? lastReading.timestamp : null,
+    lastRaw,
+    readings,
+    chunks
   };
 }
 
@@ -136,11 +153,31 @@ async function listPorts() {
   });
 }
 
-// CONECTAR A UN PUERTO ESPECIFICO
-function conectar({ port: puerto, baudRate: baud }) {
+// ESPERA EL OPEN DEL PUERTO (con timeout) PARA SABER SI REALMENTE SE ABRIO
+function openPort() {
+  return new Promise((resolve, reject) => {
+    if (!port) return reject(new Error('Puerto no inicializado'));
+
+    const timer = setTimeout(() => {
+      reject(new Error('Tiempo de espera agotado abriendo el puerto ' + config.port));
+    }, 5000);
+
+    port.open((err) => {
+      clearTimeout(timer);
+      if (err) return reject(err);
+      resolve();
+    });
+  });
+}
+
+// CONECTAR A UN PUERTO ESPECIFICO (await del open para devolver el estado REAL)
+async function conectar({ port: puerto, baudRate: baud }) {
   disconnect();
   lastReading = null;
   buffer = '';
+  lastRaw = [];
+  readings = 0;
+  chunks = 0;
 
   if (puerto) config.port = String(puerto);
   if (baud) config.baudRate = Number(baud);
@@ -148,7 +185,14 @@ function conectar({ port: puerto, baudRate: baud }) {
   saveConfig(config);
   connect();
 
-  return { config, conectada: !!(port && port.isOpen) };
+  try {
+    await openPort();
+    return { config, conectada: true, mensaje: 'Conectado a ' + config.port };
+  } catch (err) {
+    const error = (err && err.message) ? err.message : 'No se pudo abrir el puerto ' + config.port;
+    disconnect();
+    return { config, conectada: false, error };
+  }
 }
 
 // DESCONECTAR (cierra el puerto pero conserva la config)
@@ -156,10 +200,16 @@ function desconectar() {
   disconnect();
   lastReading = null;
   buffer = '';
+  lastRaw = [];
+  readings = 0;
+  chunks = 0;
   return { config, conectada: false };
 }
 
 // Servidor arranca y se conecta automaticamente
 connect();
+openPort().catch((err) => {
+  console.log('Auto-conexión de gramera fallida:', err.message);
+});
 
 module.exports = { getPeso, getConfig, conectar, desconectar, listPorts };

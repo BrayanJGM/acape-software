@@ -923,10 +923,11 @@ router.get('/gramera/ports', async (req, res) => {
   }
 });
 
-router.post('/gramera/conectar', (req, res) => {
+router.post('/gramera/conectar', async (req, res) => {
   const data = req.body;
-  const result = gramera.conectar({ port: data.port, baudRate: data.baudRate });
-  res.json({ message: `Conectado a ${result.config.port}`, data: result });
+  const result = await gramera.conectar({ port: data.port, baudRate: data.baudRate });
+  const message = result.conectada ? `Conectado a ${result.config.port}` : (result.error || 'No se pudo conectar');
+  res.json({ message, data: result });
 });
 
 router.post('/gramera/desconectar', (req, res) => {
@@ -934,10 +935,10 @@ router.post('/gramera/desconectar', (req, res) => {
   res.json({ message: "Desconectado", data: result });
 });
 
-router.post('/gramera/config', (req, res) => {
+router.post('/gramera/config', async (req, res) => {
   const data = req.body;
 
-  const newConfig = gramera.conectar({ port: data.port, baudRate: data.baudRate });
+  const newConfig = await gramera.conectar({ port: data.port, baudRate: data.baudRate });
 
   res.json({ message: "Configuración de gramera guardada", data: newConfig });
 });

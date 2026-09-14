@@ -131,9 +131,9 @@ const GrameraUI = (function () {
     axios.post('/gramera/conectar', { port, baudRate: baud }).then((resp) => {
       const result = resp.data.data || {};
       if (result.conectada) {
-        Toast.fire({ text: 'Conectado a ' + port, icon: 'success' });
+        Toast.fire({ text: resp.data.message || ('Conectado a ' + port), icon: 'success' });
       } else {
-        Toast.fire({ text: 'No se pudo abrir ' + port + '. Revisa el puerto y el cable.', icon: 'warning' });
+        Toast.fire({ text: result.error || ('No se pudo abrir ' + port + '. Revisa el puerto y el cable.'), icon: 'warning' });
       }
       cargarTodo(el);
     }).catch((err) => {
@@ -164,9 +164,11 @@ const GrameraUI = (function () {
           <span class="badge bg-danger"><i class="fa-solid fa-unlink"></i> No conectada</span>
           <span class="ms-2">Conecta la gramera para empezar a pesar.</span>`;
       } else if (s.sinDatos) {
+        const ultima = Array.isArray(s.lastRaw) && s.lastRaw.length ? s.lastRaw[s.lastRaw.length - 1] : null;
         html = `
           <span class="badge bg-warning text-dark"><i class="fa-solid fa-plug-circle-exclamation"></i> Puerto abierto, sin lectura</span>
-          <span class="ms-2">Revisa el cable y el modo UArt de la balanza.</span>`;
+          <span class="ms-2 pequeña">Revisa el cable y el modo de transmisión (CONTINUA) de la balanza.</span>` +
+          (ultima ? `<div class="small text-muted mt-2">Tramas recibidas (${s.chunks || 0}): <code>${esc(ultima)}</code> ...</div>` : (s.chunks ? `<div class="small text-muted mt-2">Llegaron ${s.chunks} fragmentos pero ninguna línea completa aún...</div>` : ''));
       } else {
         const badge = s.estable
           ? '<span class="badge bg-success">Estable</span>'
