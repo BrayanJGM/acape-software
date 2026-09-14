@@ -965,6 +965,7 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
     token: token,
     mayor: mayor,
     type: e[0].value,
+    clientId: e[2] && e[2].value ? e[2].value : null,
     date: new Date() - 0
   };
 
@@ -1029,6 +1030,19 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
   return false;
 }
 
+function cargarClientesParaVenta(respuesta) {
+  let token = sessionStorage.getItem('acape-session');
+  socket.emit('getAllClients', { token: token });
+  socket.once('getAllClients', (data) => {
+    let opciones = '<option value="">Consumidor Final</option>';
+    if (data && data.data) {
+      let arr = converterArray(data.data).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      opciones += arr.map(ch => `<option value="${ch.id}">${ch.name}${ch.document ? ' - ' + ch.document : ''}</option>`).join('');
+    }
+    respuesta(opciones);
+  });
+}
+
 function facturacion() {
   let actuallyList = sessionStorage.getItem('actually-list-products');
   if (!actuallyList) return Toast.fire({
@@ -1049,9 +1063,10 @@ function facturacion() {
   let methods = sessionStorage.getItem('methods') ? JSON.parse(sessionStorage.getItem('methods')) : {};
   let array_methods = converterArray(methods);
 
-  popup.open({
-    title: "Venta Normal",
-    content: `
+  cargarClientesParaVenta((opcionesClientes) => {
+    popup.open({
+      title: "Venta Normal",
+      content: `
       <form onsubmit="return sendCreateVenta(this, null, ${finalPrice}, event)">
         <label htmlFor="">Metodos De Pago</label>
         <select name="" value="efectivo" class="form-select">
@@ -1060,6 +1075,10 @@ function facturacion() {
         </select>
         <label>Total Recibido</label>
         <input type="text" class="form-control numberify-input-commas" value="${formatNumber(finalPrice)}">
+        <label>Cliente (opcional)</label>
+        <select class="form-select">
+          ${opcionesClientes}
+        </select>
         <div class="actual-venta">
           ${finalProducts}
           <hr>
@@ -1070,7 +1089,8 @@ function facturacion() {
         <button class="btn btn-block btn-outline-primary focusing" autofocus><i class="fa-solid fa-floppy-disk"></i> Finalizar</button>
       </form>
     `
-  })
+    });
+  });
 }
 
 function facturacionMayor() {
@@ -1093,9 +1113,10 @@ function facturacionMayor() {
   let methods = sessionStorage.getItem('methods') ? JSON.parse(sessionStorage.getItem('methods')) : {};
   let array_methods = converterArray(methods);
 
-  popup.open({
-    title: "Venta Por Mayor",
-    content: `
+  cargarClientesParaVenta((opcionesClientes) => {
+    popup.open({
+      title: "Venta Por Mayor",
+      content: `
       <form onsubmit="return sendCreateVenta(this, true, ${finalPrice}, event)">
         <label htmlFor="">Metodos De Pago</label>
         <select name="" value="efectivo" class="form-select">
@@ -1104,6 +1125,10 @@ function facturacionMayor() {
         </select>
         <label>Total Recibido</label>
         <input type="text" class="form-control numberify-input-commas" value="${formatNumber(finalPrice)}">
+        <label>Cliente (opcional)</label>
+        <select class="form-select">
+          ${opcionesClientes}
+        </select>
         <div class="actual-venta">
           ${finalProducts}
           <hr>
@@ -1114,7 +1139,8 @@ function facturacionMayor() {
         <button class="btn btn-block btn-outline-primary"><i class="fa-solid fa-floppy-disk"></i> Finalizar</button>
       </form>
     `
-  })
+    });
+  });
 }
 
 function borrarLista() {
@@ -2216,12 +2242,91 @@ function reloadClientes() {
         <td>${ch.phone}</td>
         <td>
           <button class="btn btn-outline-info" onclick="editarCliente('${ch.id}')"><i class="fa-solid fa-pen"></i></button>
+          <button class="btn btn-outline-primary" onclick="verComprasCliente(${ch.id})"><i class="fa-solid fa-bag-shopping"></i> Compras</button>
         </td>
       </tr>
     `);
     document.querySelector('.tbody-clientes').innerHTML = "";
     document.querySelector('.tbody-clientes').innerHTML = maping_clients;
   })
+}
+
+function verComprasCliente(id) {
+  let token = sessionStorage.getItem('acape-session');
+  socket.emit('getComprasCliente', { id: id, token: token });
+  socket.once('getComprasCliente', (data) => {
+    if (!data.data) return Toast.fire({ title: "Compras del cliente", text: data.message, icon: "info" });
+    window._comprasClienteActual = data.data;
+    renderComprasCliente(data.data, 'todo');
+    popup.open({
+      title: "Compras del cliente: " + (data.data.name || id),
+      content: `
+        <div class="cliente-compras">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <b>Total acumulado: $ ${formatNumber(data.data.total)}</b>
+            <span class="text-muted small">${data.data.cantVentas || 0} venta(s)</span>
+          </div>
+          <div class="mb-2">
+            <label class="small text-muted">Período</label>
+            <select id="filtroComprasCliente" class="form-select" onchange="filtrarComprasCliente(this.value)">
+              <option value="todo">Todo</option>
+              <option value="30d">Últimos 30 días</option>
+              <option value="mes">Este mes</option>
+              <option value="mesAnterior">Mes pasado</option>
+            </select>
+          </div>
+          <div id="comprasClienteContenido"></div>
+          <div id="comprasClienteResumen"></div>
+        </div>
+      `
+    });
+  });
+}
+
+function filtrarComprasCliente(filtro) {
+  renderComprasCliente(window._comprasClienteActual, filtro);
+}
+
+function renderComprasCliente(info, filtro) {
+  const cont = document.querySelector('#comprasClienteContenido');
+  const res = document.querySelector('#comprasClienteResumen');
+  if (!cont) return;
+
+  const ahora = new Date();
+  const filtradas = (info.compras || []).filter(c => {
+    const d = new Date(c.fecha || 0);
+    if (filtro === '30d') return (ahora - d) <= 30 * 24 * 3600 * 1000;
+    if (filtro === 'mes') return d.getFullYear() === ahora.getFullYear() && d.getMonth() === ahora.getMonth();
+    if (filtro === 'mesAnterior') {
+      const anio = ahora.getMonth() === 0 ? ahora.getFullYear() - 1 : ahora.getFullYear();
+      const mes = ahora.getMonth() === 0 ? 11 : ahora.getMonth() - 1;
+      return d.getFullYear() === anio && d.getMonth() === mes;
+    }
+    return true;
+  });
+
+  const subtotal = filtradas.reduce((s, c) => s + Number(c.total || 0), 0);
+
+  if (!filtradas.length) {
+    cont.innerHTML = '<p class="text-muted small">Este cliente no tiene compras en este período.</p>';
+  } else {
+    cont.innerHTML = `<table class="table table-sm table-striped">
+      <thead><tr><th># Vent</th><th>Fecha</th><th>Items</th><th>Total</th><th></th></tr></thead>
+      <tbody>
+        ${filtradas.map(c => `
+          <tr>
+            <td>${c.ventaId}</td>
+            <td>${formatDate(c.fecha)}</td>
+            <td class="small">${(c.productos || []).map(p => p.nombre + ' x' + p.cantidad).join('<br>')}</td>
+            <td>$ ${formatNumber(c.total)}</td>
+            <td><button class="btn btn-outline-secondary btn-sm" onclick="factVenta(${c.ventaId})">Ver</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  res.innerHTML = `<div class="alert alert-info p-2 small">Total comprado en el período seleccionado: <b>$ ${formatNumber(subtotal)}</b> en ${filtradas.length} venta(s).</div>`;
 }
 
 function submitCreateClient(e) {
@@ -2456,7 +2561,7 @@ function factVenta(id) {
             </tbody>
           </table>
           <br>
-          <span><b>Cliente:</b> <l class="change-user">${"Consumidor Final"}</l></span><br>
+          <span><b>Cliente:</b> <l class="change-user">${finding_venta.cliente?finding_venta.cliente:"Consumidor Final"}</l></span><br>
           <span><b>Pago a través de: ${finding_venta.digital?("Transferencia Bancaria > "+finding_venta.digital):"Efectivo > De Contado."}</b></span>
           <br><br>
           <span><b>Total:</b> $ ${formatNumber(finding_venta.total_pago)}</span>

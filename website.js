@@ -1198,7 +1198,7 @@ router.post('/createVenta', (req, res) => {
   if (!data.total_recibido) return res.json({ message: "Agrega el total recibido por parte del cliente." });
   if (!data.token) return res.json({ message: "Agrega el token para registrar la venta con tu usuario." });
 
-  let venta_creada = database.createVenta(data.venta, data.total_recibido, data.token, data.mayor);
+  let venta_creada = database.createVenta(data.venta, data.total_recibido, data.token, data.mayor, null, data.clientId);
 
   if(venta_creada.data){
     ventasCount += 1;
@@ -1228,7 +1228,7 @@ router.post('/createVentaDigital', (req, res) => {
   let method = database.method(data.type);
   if(!method.data) return res.json(method);
 
-  let creatingVenta = database.createVenta(data.venta, data.total_recibido, data.token, data.mayor, method.data.name);
+  let creatingVenta = database.createVenta(data.venta, data.total_recibido, data.token, data.mayor, method.data.name, data.clientId);
   if(!creatingVenta.data) return res.json(creatingVenta);
 
   database.addToGeneral({
@@ -1305,6 +1305,14 @@ router.post('/getAllClients', (req, res) => {
   if (!data) return res.json({ message: "Agrega el token del usuario." });
 
   return res.json(database.getClients(data.token));
+})
+
+router.post('/getComprasCliente', (req, res) => {
+  const { id, token } = req.body || {};
+  if (id == null) return res.json({ message: "Agrega el id del cliente." });
+  if (!token) return res.json({ message: "Agrega el token para acceder a la información." });
+
+  return res.json(database.getComprasCliente(id, token));
 })
 
 // USERS FUNCTIONS -- DE LA FUNCION PRINCIPAL

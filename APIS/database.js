@@ -1417,7 +1417,7 @@ class Database {
 
 	// OPTIMIZADA
 	// NO NECESITA ELIMINARSE LA LINEA CANTIDADSOLICITADA
-	createVenta(ventas = [], total_recibido = 0, token, mayor, digital) {
+	createVenta(ventas = [], total_recibido = 0, token, mayor, digital, clientId) {
 	  if (!ventas[0]) return { message: "Añade productos para concretar la venta." };
 
 	  let products = this.db.getData('/data/simple/products');
@@ -1494,13 +1494,38 @@ class Database {
 	    digital: digital
 	  };
 
-	  final_venta.vueltas = final_venta.recibido - final_venta.total_pago;
+final_venta.vueltas = final_venta.recibido - final_venta.total_pago;
 
-	  this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
-	  this.db.setData('/data/simple/id', ids);
+  this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
+  this.db.setData('/data/simple/id', ids);
 
-	  return { message: "Venta hecha satisfactoriamente", data: final_venta };
-	}
+  // VINCULACION CON CLIENTE: registra la compra en el historial del cliente
+  if (clientId) {
+    try {
+      let clientes = this.db.getData('/data/simple/clientes');
+      let findingClient = clientes[clientId];
+      if (findingClient) {
+        final_venta.clienteId = clientId;
+        final_venta.cliente = findingClient.name;
+        findingClient.compras = converterArray(findingClient.compras || []);
+        findingClient.compras.push({
+          ventaId: final_venta.id,
+          fecha: final_venta.date,
+          total: final_venta.total_pago,
+          productos: final_data.map(p => ({
+            nombre: p.name,
+            cantidad: p.cantidad,
+            total: p.precio_final
+          }))
+        });
+        this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
+        this.db.setData('/data/simple/clientes', clientes);
+      }
+    } catch (err) {}
+  }
+
+  return { message: "Venta hecha satisfactoriamente", data: final_venta };
+}
 
 
 	// OPTIMIZADA
@@ -1632,6 +1657,43 @@ class Database {
 		if(!validateUser) return {message: "No tiene permisos suficientes."};
 		let clientes = this.db.getData('/data/simple/clientes');
 		return {message: "Lista de clientes", data: clientes};
+	}
+
+	// HISTORIAL DE COMPRAS DE UN CLIENTE: ventas vinculadas, total acumulado
+	// y resumen por mes (cuánto ha comprado a lo largo del tiempo)
+	getComprasCliente(id, token){
+		let validateUser = this.validatePerms(token, 'view');
+		if(!validateUser) return {message: "No tiene permisos suficientes."};
+
+		let clientes = this.db.getData('/data/simple/clientes');
+		let findingClient = clientes[id];
+		if(!findingClient) return {message: "Este cliente no existe o ya fue eliminado."};
+
+		let compras = converterArray(findingClient.compras || {});
+		compras.forEach(c => c.productos = converterArray(c.productos || []));
+		compras.sort((a, b) => (b.fecha || 0) - (a.fecha || 0));
+
+		const total = compras.reduce((sum, c) => sum + Number(c.total || 0), 0);
+		const mensual = {};
+		compras.forEach(c => {
+			const d = new Date(c.fecha || 0);
+			const clave = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+			mensual[clave] = Number(mensual[clave] || 0) + Number(c.total || 0);
+		});
+
+		return {
+			message: "Compras del cliente",
+			data: {
+				id: id,
+				name: findingClient.name,
+				phone: findingClient.phone,
+				document: findingClient.document,
+				compras,
+				total,
+				cantVentas: compras.length,
+				mensual
+			}
+		};
 	}
 
 	// -------------------------------------------------------------------------------
