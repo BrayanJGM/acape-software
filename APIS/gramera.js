@@ -13,6 +13,12 @@ let lastReading = null;
 let lastRaw = [];
 let readings = 0;
 let chunks = 0;
+let detectMode = false;
+
+const PATRON_PESO = /(ST|US|OL)?([+-])?(\d+\.?\d*)\s*(kg|g|t|lb)\b/i;
+const PATRON_LINEA = new RegExp('^' + PATRON_PESO.source, 'i');
+const BAUD_CANDIDATOS = [9600, 4800, 2400, 19200, 1200, 38400];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function loadConfig() {
   try {
@@ -30,24 +36,20 @@ function saveConfig(nuevoConfig) {
 }
 
 // PARSEA UNA LINEA TIPO: "WTST+ 600.00 g", "NTST+ 000876 kg", "GSUS- 1.568 lb"
-function parseLine(line) {
-  const regex = /(ST|US|OL)([+-])\s*(\d+\.?\d*)\s*(kg|g|t|lb)/;
-  const match = line.match(regex);
-  if (!match) return null;
+// Tambien acepta tramas continuas simples: "000.560kg", "+000.560 kg", etc.
+function construirLectura(m) {
+  if (!m) return null;
 
-  const estado = match[1];
-  const signo = match[2];
-  const numero = parseFloat(match[3]);
-  const unidad = match[4].toLowerCase();
+  const estado = m[1] ? m[1].toUpperCase() : null;
+  const signo = m[2] === '-' ? '-' : '+';
+  const numero = parseFloat(m[3]);
+  const unidad = (m[4] || 'kg').toLowerCase();
   const valor = signo === '-' ? -numero : numero;
 
   let pesoKg = valor;
-  switch (unidad) {
-    case 'g': pesoKg = valor / 1000; break;
-    case 'kg': pesoKg = valor; break;
-    case 't': pesoKg = valor * 1000; break;
-    case 'lb': pesoKg = valor * 0.45359237; break;
-  }
+  if (unidad === 'g') pesoKg = valor / 1000;
+  else if (unidad === 'lb') pesoKg = valor * 0.45359237;
+  else if (unidad === 't') pesoKg = valor * 1000;
 
   return {
     peso: pesoKg,
@@ -56,6 +58,10 @@ function parseLine(line) {
     estable: estado === 'ST',
     sobrecarga: estado === 'OL'
   };
+}
+
+function parseLine(line) {
+  return construirLectura(line.match(PATRON_LINEA));
 }
 
 function connect() {
@@ -68,10 +74,18 @@ function connect() {
 
     port.on('data', (chunk) => {
       const texto = chunk.toString('ascii');
+
+      if (detectMode) {
+        buffer += texto;
+        if (buffer.length > 5000) buffer = buffer.slice(-1000);
+        return;
+      }
+
       chunks++;
       buffer += texto;
       const lines = buffer.split(/[\r\n]+/);
       buffer = lines.pop();
+
       lines.forEach((line) => {
         const limpia = line.trim();
         if (!limpia) return;
@@ -87,6 +101,21 @@ function connect() {
           console.log('GRAMERA PESO:', JSON.stringify(reading));
         }
       });
+
+      // Tramas continuas sin salto de linea: "000.560kg000.560kg"
+      if (buffer.length > 60) {
+        const m = PATRON_PESO.exec(buffer);
+        if (m) {
+          const reading = construirLectura(m);
+          if (reading) {
+            readings++;
+            lastReading = { ...reading, timestamp: Date.now() };
+          }
+          buffer = buffer.slice(m.index + m[0].length);
+        } else {
+          buffer = buffer.slice(-40);
+        }
+      }
     });
 
     port.on('error', (err) => {
@@ -121,6 +150,8 @@ function getPeso() {
     }
   }
 
+  const bufferRaw = buffer.length > 40 ? buffer.slice(-40) : buffer;
+
   return {
     conectada,
     sinDatos,
@@ -128,7 +159,10 @@ function getPeso() {
     timestamp: lastReading ? lastReading.timestamp : null,
     lastRaw,
     readings,
-    chunks
+    chunks,
+    baudRate: config.baudRate,
+    bufferRaw,
+    hex: Buffer.from(bufferRaw, 'ascii').toString('hex').toUpperCase()
   };
 }
 
@@ -206,10 +240,73 @@ function desconectar() {
   return { config, conectada: false };
 }
 
+// PUNTUA UN TEXTO: mas puntos = mas parecido a una trama ASCII de balanza
+function puntuarTramas(texto) {
+  let puntos = 0;
+  for (const ch of texto) {
+    const c = ch.charCodeAt(0);
+    if (c >= 0x30 && c <= 0x39) puntos += 2;
+    else if (c >= 0x20 && c <= 0x7e) puntos += 1;
+  }
+  puntos += (texto.match(/kg|g|lb/gi) || []).length * 30;
+  puntos += (texto.match(/ST|US|OL/gi) || []).length * 20;
+  puntos += (texto.match(/\r\n/g) || []).length * 5;
+  return puntos;
+}
+
+// PRUEBA TODOS LOS BAUD RATE Y SE QUEDA CON EL QUE MEJOR LEA LA BALANZA
+async function detectarBaud() {
+  const portName = config.port;
+  const original = config.baudRate;
+
+  const resultado = [];
+  let mejor = { baud: original, puntos: 0, muestra: '' };
+
+  for (const baud of BAUD_CANDIDATOS) {
+    disconnect();
+    config.baudRate = baud;
+    buffer = '';
+    detectMode = true;
+    connect();
+    try {
+      await openPort();
+    } catch (err) {
+      // el puerto no abrio a este baud: se puntua con 0
+    }
+    await sleep(1800);
+
+    const texto = buffer.slice(-200);
+    detectMode = false;
+
+    const puntos = puntuarTramas(texto);
+    resultado.push({ baud, puntos, muestra: texto.slice(0, 60) });
+    console.log(`Baud ${baud}: ${puntos} pts | ${JSON.stringify(texto.slice(0, 60))}`);
+
+    if (puntos > mejor.puntos) {
+      mejor = { baud, puntos, muestra: texto.slice(0, 60) };
+    }
+  }
+
+  disconnect();
+  config.baudRate = mejor.puntos > 0 ? mejor.baud : original;
+  saveConfig(config);
+  buffer = '';
+  lastReading = null;
+  lastRaw = [];
+  readings = 0;
+  chunks = 0;
+  connect();
+  try {
+    await openPort();
+  } catch (err) {}
+
+  return { port: portName, resultado, mejor, config };
+}
+
 // Servidor arranca y se conecta automaticamente
 connect();
 openPort().catch((err) => {
   console.log('Auto-conexión de gramera fallida:', err.message);
 });
 
-module.exports = { getPeso, getConfig, conectar, desconectar, listPorts };
+module.exports = { getPeso, getConfig, conectar, desconectar, listPorts, detectarBaud };

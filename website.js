@@ -943,6 +943,15 @@ router.post('/gramera/config', async (req, res) => {
   res.json({ message: "Configuración de gramera guardada", data: newConfig });
 });
 
+router.get('/gramera/detectar', async (req, res) => {
+  try {
+    const result = await gramera.detectarBaud();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message, port: gramera.getConfig().port });
+  }
+});
+
 router.post('/token_validation', (req, res) => {
   const data = req.body.token;
   validator.start(data, (data, err) => {

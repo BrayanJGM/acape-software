@@ -31,6 +31,7 @@ const GrameraUI = (function () {
 
         <div class="d-grid gap-2">
           <button class="btn btn-outline-success gramera-ui-conectar"><i class="fa-solid fa-plug"></i> Conectar</button>
+          <button class="btn btn-outline-warning gramera-ui-detectar"><i class="fa-solid fa-magnifying-glass"></i> Detectar velocidad automáticamente</button>
           <button class="btn btn-outline-danger gramera-ui-desconectar"><i class="fa-solid fa-unplug"></i> Desconectar</button>
           <button class="btn btn-outline-secondary gramera-ui-actualizar"><i class="fa-solid fa-rotate"></i> Actualizar puertos</button>
         </div>
@@ -49,6 +50,7 @@ const GrameraUI = (function () {
     });
 
     el.querySelector('.gramera-ui-conectar').addEventListener('click', () => conectar(el));
+    el.querySelector('.gramera-ui-detectar').addEventListener('click', () => detectarVelocidad(el));
     el.querySelector('.gramera-ui-desconectar').addEventListener('click', () => desconectar(el));
     el.querySelector('.gramera-ui-actualizar').addEventListener('click', () => cargarTodo(el, true));
 
@@ -151,6 +153,32 @@ const GrameraUI = (function () {
     });
   }
 
+  function detectarVelocidad(el) {
+    mostrarMsg(el, 'Probando velocidades (9600, 4800, 2400, 19200, 1200, 38400)... tarda unos 12 segundos.');
+    const btn = el.querySelector('.gramera-ui-detectar');
+    if (btn) btn.disabled = true;
+
+    axios.get('/gramera/detectar').then((resp) => {
+      const mejor = resp.data.mejor || {};
+      const sel = el.querySelector('.gramera-ui-baud');
+      if (mejor.baud && sel) sel.value = mejor.baud;
+
+      const legible = !!(mejor.muestra && mejor.puntos > 0);
+      Toast.fire({
+        text: 'Velocidad detectada: ' + (mejor.baud || '?') + ' baud (' + (mejor.puntos || 0) + ' pts)' +
+          (legible ? ' — ¡Revisa si ya lee el peso!' : ' — no se encontró señal legible en ningún baud.'),
+        icon: legible ? 'success' : 'warning',
+        timer: 6000
+      });
+      cargarTodo(el);
+    }).catch((err) => {
+      Toast.fire({ text: 'Error detectando: ' + (err.response ? err.response.data.message : err.message), icon: 'error' });
+      mostrarMsg(el, 'No se pudo detectar la velocidad.', true);
+    }).finally(() => {
+      if (btn) btn.disabled = false;
+    });
+  }
+
   function actualizarEstado(el) {
     const estadoEl = el.querySelector('.gramera-ui-estado');
     if (!estadoEl) return;
@@ -165,10 +193,13 @@ const GrameraUI = (function () {
           <span class="ms-2">Conecta la gramera para empezar a pesar.</span>`;
       } else if (s.sinDatos) {
         const ultima = Array.isArray(s.lastRaw) && s.lastRaw.length ? s.lastRaw[s.lastRaw.length - 1] : null;
+        const muestra = String(s.bufferRaw || '').replace(/[^\x20-\x7E]/g, '.');
+        const hexa = String(s.hex || '');
         html = `
           <span class="badge bg-warning text-dark"><i class="fa-solid fa-plug-circle-exclamation"></i> Puerto abierto, sin lectura</span>
-          <span class="ms-2 pequeña">Revisa el cable y el modo de transmisión (CONTINUA) de la balanza.</span>` +
-          (ultima ? `<div class="small text-muted mt-2">Tramas recibidas (${s.chunks || 0}): <code>${esc(ultima)}</code> ...</div>` : (s.chunks ? `<div class="small text-muted mt-2">Llegaron ${s.chunks} fragmentos pero ninguna línea completa aún...</div>` : ''));
+          <span class="ms-2 pequeña">Baud ${s.baudRate || '?'}. Revisa el cable y el modo CONTINUA de la balanza.</span>` +
+          (ultima ? `<div class="small text-muted mt-2">Tramas recibidas (${s.chunks || 0}): <code>${esc(ultima)}</code> ...</div>` : '') +
+          (muestra ? `<div class="small text-muted mt-1">Bytes: ${s.chunks || 0} fragmentos — <code>${esc(muestra)}</code><br><code>${esc(hexa)}</code></div>` : '');
       } else {
         const badge = s.estable
           ? '<span class="badge bg-success">Estable</span>'
