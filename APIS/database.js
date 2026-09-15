@@ -1575,7 +1575,7 @@ final_venta.vueltas = final_venta.recibido - final_venta.total_pago;
 		let users = this.db.getData('/data/simple/clientes');
 		let array_user = converterArray(users);
 
-		return users[data.id] || array_user.find(ch => ch.name == data.name) || array_user.find(ch => ch.document == data.document);
+		return users[data.id] || array_user.find(ch => ch.name == data.name) || (data.document ? array_user.find(ch => ch.document == data.document) : undefined);
 	}
 	createClient(data, token){
 		if(!data) return {message: "Agrega la información del cliente"};

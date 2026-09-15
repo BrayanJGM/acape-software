@@ -2783,36 +2783,36 @@ function createClient() {
       <form class="form-inline" onsubmit="return submitCreateClient(this)">
         <p>Crea un cliente para poder facturar a nombre de este cliente.</p>
         <label>Nombre Completo Del Cliente</label>
-        <input type="text" required class="form-control" required placeholder="Ejem: Jhon Andres Doe Clinton">
+        <input type="text" class="form-control" required placeholder="Ejem: Jhon Andres Doe Clinton">
         
         <br>
         <label>Documento de identidad</label>
         <div class="input-group mb-3">
-          <select value="cc" class="form-valuate w-auto" required>
+          <select value="cc" class="form-valuate w-auto">
             <option value="cc">C.C</option>
             <option value="ti">T.I</option>
             <option value="ex">Ext</option>
           </select>
-          <input type="number" required class="form-control d-inline" placeholder="Ejem: 102029192">
+          <input type="number" class="form-control d-inline" placeholder="Ejem: 102029192">
         </div>
 
         <label>Numero de telefono (Colombiano)</label>
         <div class="input-group mb-3">
           <span class="input-group-text">+57</span>
-          <input type="number" required class="form-control d-inline" placeholder="Ejem: 3112259328">
+          <input type="number" class="form-control d-inline" placeholder="Ejem: 3112259328">
         </div>
 
         <label>Correo Electronico</label>
         <div class="input-group mb-3">
         <span class="input-group-text">Email</span>
-          <input type="text" required class="form-control" placeholder="Ejem: email@example.com">
+          <input type="text" class="form-control" placeholder="Ejem: email@example.com">
         </div>
 
         <label>Lugar de expedicion</label>
-        <input type="text" required class="form-control" placeholder="Fortul - Arauca">
+        <input type="text" class="form-control" placeholder="Fortul - Arauca">
 
         <label>Dirección del pedido / vivienda</label>
-        <input type="text" required class="form-control" placeholder="Calle #15 12-13">
+        <input type="text" class="form-control" placeholder="Calle #15 12-13">
 
         <br>
         <label>Categoría (opcional)</label>
@@ -2822,7 +2822,7 @@ function createClient() {
         <label>Proviene de (opcional)</label>
         <input type="text" class="form-control" placeholder="Ej: nombre de la empresa">
         <br>
-        <button required class="btn btn-outline-primary d-block w-100">Guardar Cliente</button>
+        <button class="btn btn-outline-primary d-block w-100">Guardar Cliente</button>
       </form>
     `
   }))
