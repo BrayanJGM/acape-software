@@ -1378,6 +1378,10 @@ function activarBuscadorCliente(clientes, opts = {}) {
     resultados.hidden = true;
     if (quitar) quitar.hidden = false;
     if (opts.onSelect) opts.onSelect(c);
+    if (opts.focusOnSelect) {
+      let destino = document.getElementById(opts.focusOnSelect);
+      if (destino) destino.focus();
+    }
   }
 
   function limpiarSeleccion() {
@@ -1475,7 +1479,7 @@ function facturacion() {
       </form>
     `
     });
-    activarBuscadorCliente(clientesVenta);
+    activarBuscadorCliente(clientesVenta, { focusOnSelect: 'btnFinalizarVenta' });
     let btnFinalizar = document.getElementById('btnFinalizarVenta');
     if (btnFinalizar) btnFinalizar.focus();
   });
@@ -1531,7 +1535,7 @@ function facturacionMayor() {
       </form>
     `
     });
-    activarBuscadorCliente(clientesVenta);
+    activarBuscadorCliente(clientesVenta, { focusOnSelect: 'btnFinalizarVentaMayor' });
     let btnFinalizarMayor = document.getElementById('btnFinalizarVentaMayor');
     if (btnFinalizarMayor) btnFinalizarMayor.focus();
   });
