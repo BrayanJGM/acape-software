@@ -516,23 +516,37 @@ form p {
 	box-shadow: 0 0 0 3px rgba(0, 86, 179, 0.25);
 	background: #eaf3ff;
 }
-.atajo-pesando {
-	opacity: 0.7;
-	border-color: #ffc107;
-}
-.atajo-pesando .atajo-tecla::after {
-	content: " ·";
-	animation: parpadeo 0.8s infinite;
-	color: #e0a800;
-}
-@keyframes parpadeo {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0.3; }
-}
 .tecla-badge {
 	background: rgba(0, 86, 179, 0.12);
 	color: #0056b3;
 	font-size: 0.7rem;
+}
+
+/* POPUP DE PESAJE RÁPIDO */
+.pesaje-rapido {
+	text-align: center;
+}
+.pesaje-peso {
+	font-size: 3rem;
+	font-weight: 800;
+	line-height: 1.1;
+	color: #0056b3;
+	padding: 0.75rem 0 0.25rem;
+}
+.pesaje-estado {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-size: 0.9rem;
+	color: rgba(0, 0, 0, 0.6);
+}
+.pesaje-ok {
+	color: #1e7e34;
+	font-weight: 600;
+}
+.pesaje-error {
+	color: #dc3545;
+	font-weight: 600;
 }
 
 /* BUSCADOR DE CLIENTE (ventas y pedidos) */

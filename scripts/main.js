@@ -759,38 +759,153 @@ function deleteList(id) {
 }
 
 // GRAMERA (BALANZA): CAPTURA EL PESO ACTUAL Y LO PONE COMO CANTIDAD DEL PRODUCTO
-function pesarProducto(id) {
-  axios.get('/gramera/peso').then((resp) => {
-    const data = resp.data;
+// POPUP DE PESAJE: ESPERA EL PESO ESTABLE Y SE CONFIRMA CON ENTER
+let _pesajePopupAbierto = false;
+let _pesajePopupTimer = null;
+let _pesajePopupId = null;
+let _pesajePopupModo = 'agregar';
+let _pesajePopupPeso = null;
 
-    if (!data.conectada) return Toast.fire({ text: "La gramera no está conectada", icon: "error" });
-    if (data.sobrecarga) return Toast.fire({ text: "La gramera está en sobrecarga", icon: "error" });
-    if (!data.estable) return Toast.fire({ text: `El peso aún no es estable: ${data.peso.toFixed(3)} kg`, icon: "warning" });
+function abrirPesajePopup(id, modo = 'agregar') {
+  let products = JSON.parse(sessionStorage.getItem('products') || "{}");
+  let product = converterArray(products).find(ch => ch.id == id);
+  if (!product) return Toast.fire({ text: "Producto no encontrado.", icon: "error" });
 
-    let actuallyProductsList = sessionStorage.getItem('actually-list-products');
-    if (!actuallyProductsList) return Toast.fire({ text: "Actualmente no hay productos en la lista", icon: "info" });
+  if (_pesajePopupAbierto) return Toast.fire({ text: "Ya hay un pesaje en curso.", icon: "info" });
 
-    let productList = JSON.parse(actuallyProductsList);
-    let pesoCapturado = Number(data.peso.toFixed(3));
+  _pesajePopupAbierto = true;
+  _pesajePopupId = id;
+  _pesajePopupModo = modo;
+  _pesajePopupPeso = null;
 
-    productList.forEach((element, i, array) => {
-      if (element.id == id) {
-        array[i].cantidad = pesoCapturado;
-        sessionStorage.setItem('actually-list-products', JSON.stringify(array));
-      }
-    })
+  popup.open({
+    title: `Pesaje: ${product.name}`,
+    close: false,
+    content: `
+      <div class="pesaje-rapido">
+        <p class="small text-muted">Coloca el producto en la gramera y espera a que el peso se estabilice. Luego presiona Enter para ${modo == 'agregar' ? 'agregarlo a la venta' : 'guardar el pesaje'}.</p>
+        <div class="pesaje-peso">— kg</div>
+        <div class="pesaje-estado"><span class="spinner-border spinner-border-sm me-1"></span>Pesando…</div>
+        <button class="btn btn-outline-success d-block w-100 mt-3" id="btnConfirmarPesaje" disabled onclick="confirmarPesajeRapido()">
+          <i class="fa-solid fa-check"></i> ${modo == 'agregar' ? "Agregar (Enter)" : "Guardar peso (Enter)"}
+        </button>
+        <button class="btn btn-outline-secondary d-block w-100 mt-2" onclick="cancelarPesajePopup()">Cancelar (Esc)</button>
+      </div>
+    `
+  });
 
-    listingProducts();
-
-    Toast.fire({ text: `Peso capturado: ${pesoCapturado} kg`, icon: "success" });
-  }).catch((err) => {
-    console.log(err);
-    Toast.fire({ text: "Error leyendo la gramera", icon: "error" });
-  })
+  pesajePopupTick();
+  _pesajePopupTimer = setInterval(pesajePopupTick, 400);
 }
 
+function pesajePopupTick() {
+  let elPeso = document.querySelector('.pesaje-peso');
+  if (!elPeso) {
+    clearInterval(_pesajePopupTimer);
+    return;
+  }
+
+  axios.get('/gramera/peso').then((resp) => {
+    const data = resp.data;
+    let elEstado = document.querySelector('.pesaje-estado');
+    let btn = document.querySelector('#btnConfirmarPesaje');
+
+    if (!data.conectada) {
+      elPeso.innerHTML = '— kg';
+      if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-plug-circle-xmark"></i> Gramera no conectada'; elEstado.className = "pesaje-estado pesaje-error"; }
+      if (btn) btn.disabled = true;
+      return;
+    }
+    if (data.sobrecarga) {
+      elPeso.innerHTML = '— kg';
+      if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Sobrecarga en la gramera'; elEstado.className = "pesaje-estado pesaje-error"; }
+      if (btn) btn.disabled = true;
+      return;
+    }
+
+    let actual = Number(Number(data.peso).toFixed(3));
+    elPeso.innerHTML = `${actual} kg`;
+
+    if (data.estable) {
+      _pesajePopupPeso = actual;
+      if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-circle-check"></i> Peso estable'; elEstado.className = "pesaje-estado pesaje-ok"; }
+      if (btn) btn.disabled = false;
+    } else {
+      if (elEstado) { elEstado.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Pesando…'; elEstado.className = "pesaje-estado"; }
+      if (btn) btn.disabled = true;
+    }
+  }).catch(() => {
+    let elEstado = document.querySelector('.pesaje-estado');
+    if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Error leyendo la gramera'; elEstado.className = "pesaje-estado pesaje-error"; }
+  });
+}
+
+function aplicarPesaje(id, peso, modo) {
+  let list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
+  if (modo == 'agregar') {
+    setListProduct(id);
+    list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
+  }
+  list.forEach((el) => { if (el.id == id) el.cantidad = peso; });
+  sessionStorage.setItem('actually-list-products', JSON.stringify(list));
+  listingProducts();
+}
+
+function confirmarPesajeRapido() {
+  if (!_pesajePopupAbierto) return;
+  if (_pesajePopupPeso == null) return Toast.fire({ text: "Espera a que el peso se estabilice.", icon: "info" });
+
+  let id = _pesajePopupId;
+  let peso = _pesajePopupPeso;
+  let modo = _pesajePopupModo;
+
+  let product = converterArray(JSON.parse(sessionStorage.getItem('products') || "{}")).find(ch => ch.id == id);
+
+  cerrarPesajePopup();
+  aplicarPesaje(id, peso, modo);
+  enfocarBuscador();
+
+  if (product) {
+    let precioFinal = Number(product.price || 0) * peso;
+    Toast.fire({ text: `${product.name} · ${peso} kg → $ ${formatNumber(precioFinal)}`, icon: "success" });
+  }
+}
+
+function cancelarPesajePopup() {
+  if (!_pesajePopupAbierto) return;
+  cerrarPesajePopup();
+  Toast.fire({ text: "Pesaje cancelado.", icon: "info" });
+  enfocarBuscador();
+}
+
+function cerrarPesajePopup() {
+  clearInterval(_pesajePopupTimer);
+  _pesajePopupTimer = null;
+  _pesajePopupAbierto = false;
+  _pesajePopupId = null;
+  _pesajePopupModo = 'agregar';
+  _pesajePopupPeso = null;
+  popup.close();
+}
+
+function pesarProducto(id) {
+  abrirPesajePopup(id, 'pesar');
+}
+
+document.addEventListener('keydown', (event) => {
+  if (!_pesajePopupAbierto) return;
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    confirmarPesajeRapido();
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    cancelarPesajePopup();
+  }
+});
+
 // ATAJOS DE TECLADO: VENTA RÁPIDA DESDE LA PANTALLA PRINCIPAL
-let _atajoPesando = false;
 
 function normalizarTecla(t) {
   return String(t || '').trim().toLowerCase();
@@ -827,26 +942,6 @@ function renderAtajos() {
   }).join('');
 }
 
-function capturarPesoEstable(tiempoMax = 8000) {
-  return new Promise((resolve, reject) => {
-    let inicio = Date.now();
-    let intentar = () => {
-      axios.get('/gramera/peso').then((resp) => {
-        const data = resp.data;
-        if (!data.conectada) return reject({ codigo: "desconectada" });
-        if (data.sobrecarga) return reject({ codigo: "sobrecarga" });
-        if (data.estable) return resolve(data.peso);
-        if (Date.now() - inicio > tiempoMax) return reject({ codigo: "tiempo" });
-        setTimeout(intentar, 400);
-      }).catch(() => {
-        if (Date.now() - inicio > tiempoMax) return reject({ codigo: "tiempo" });
-        setTimeout(intentar, 400);
-      });
-    };
-    intentar();
-  });
-}
-
 function agregarPorTecla(id, tecla) {
   let products = JSON.parse(sessionStorage.getItem('products') || "{}");
   let product = converterArray(products).find(ch => ch.id == id);
@@ -859,35 +954,12 @@ function agregarPorTecla(id, tecla) {
     setTimeout(() => tile.classList.remove('atajo-press'), 400);
   }
 
-  if (product.venta_por_peso != "true") {
-    setListProduct(id);
+  if (product.venta_por_peso == "true") {
+    abrirPesajePopup(id, 'agregar');
     return;
   }
 
-  if (_atajoPesando) return;
-  _atajoPesando = true;
-  if (tile) tile.classList.add('atajo-pesando');
-
-  capturarPesoEstable().then((peso) => {
-    peso = Number(Number(peso).toFixed(3));
-    setListProduct(id);
-    let list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
-    list.forEach((el) => { if (el.id == id) el.cantidad = peso; });
-    sessionStorage.setItem('actually-list-products', JSON.stringify(list));
-    listingProducts();
-    let precioFinal = Number(product.price || 0) * peso;
-    Toast.fire({ text: `${product.name} · ${peso} kg → $ ${formatNumber(precioFinal)}`, icon: "success" });
-  }).catch((err) => {
-    let msg = {
-      desconectada: "La gramera no está conectada.",
-      sobrecarga: "La gramera está en sobrecarga.",
-      tiempo: "La balanza no se estabilizó. Intenta de nuevo."
-    }[err.codigo] || "Error leyendo la gramera.";
-    Toast.fire({ text: msg, icon: "error" });
-  }).finally(() => {
-    _atajoPesando = false;
-    if (tile) tile.classList.remove('atajo-pesando');
-  });
+  setListProduct(id);
 }
 
 document.addEventListener('keydown', (event) => {
@@ -908,7 +980,7 @@ document.addEventListener('keydown', (event) => {
     let valor = (input.value || '').trim();
     if (valor) {
       buscarRapido(valor);
-    } else if (!_atajoPesando) {
+    } else {
       facturacion();
     }
     return;
