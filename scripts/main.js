@@ -765,6 +765,7 @@ let _pesajePopupTimer = null;
 let _pesajePopupId = null;
 let _pesajePopupModo = 'agregar';
 let _pesajePopupPeso = null;
+let _pesajePopupProducto = null;
 
 function abrirPesajePopup(id, modo = 'agregar') {
   let products = JSON.parse(sessionStorage.getItem('products') || "{}");
@@ -777,6 +778,7 @@ function abrirPesajePopup(id, modo = 'agregar') {
   _pesajePopupId = id;
   _pesajePopupModo = modo;
   _pesajePopupPeso = null;
+  _pesajePopupProducto = product;
 
   popup.open({
     title: `Pesaje: ${product.name}`,
@@ -785,6 +787,10 @@ function abrirPesajePopup(id, modo = 'agregar') {
       <div class="pesaje-rapido">
         <p class="small text-muted">Coloca el producto en la gramera y espera a que el peso se estabilice. Luego presiona Enter para ${modo == 'agregar' ? 'agregarlo a la venta' : 'guardar el pesaje'}.</p>
         <div class="pesaje-peso">— kg</div>
+        <div class="pesaje-precio">
+          <div class="pesaje-precio-unitario">Precio: $ ${formatNumber(product.price || 0)} / kg</div>
+          <div class="pesaje-precio-total" id="pesajeTotal">Total: $ —</div>
+        </div>
         <div class="pesaje-estado"><span class="spinner-border spinner-border-sm me-1"></span>Pesando…</div>
         <button class="btn btn-outline-success d-block w-100 mt-3" id="btnConfirmarPesaje" disabled onclick="confirmarPesajeRapido()">
           <i class="fa-solid fa-check"></i> ${modo == 'agregar' ? "Agregar (Enter)" : "Guardar peso (Enter)"}
@@ -809,15 +815,18 @@ function pesajePopupTick() {
     const data = resp.data;
     let elEstado = document.querySelector('.pesaje-estado');
     let btn = document.querySelector('#btnConfirmarPesaje');
+    let elTotal = document.querySelector('#pesajeTotal');
 
     if (!data.conectada) {
       elPeso.innerHTML = '— kg';
+      if (elTotal) elTotal.innerHTML = 'Total: $ —';
       if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-plug-circle-xmark"></i> Gramera no conectada'; elEstado.className = "pesaje-estado pesaje-error"; }
       if (btn) btn.disabled = true;
       return;
     }
     if (data.sobrecarga) {
       elPeso.innerHTML = '— kg';
+      if (elTotal) elTotal.innerHTML = 'Total: $ —';
       if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Sobrecarga en la gramera'; elEstado.className = "pesaje-estado pesaje-error"; }
       if (btn) btn.disabled = true;
       return;
@@ -825,6 +834,10 @@ function pesajePopupTick() {
 
     let actual = Number(Number(data.peso).toFixed(3));
     elPeso.innerHTML = `${actual} kg`;
+    if (elTotal) {
+      let precio = Number(_pesajePopupProducto && _pesajePopupProducto.price || 0);
+      elTotal.innerHTML = `Total: $ ${formatNumber(actual * precio)}`;
+    }
 
     if (data.estable) {
       _pesajePopupPeso = actual;
@@ -836,6 +849,8 @@ function pesajePopupTick() {
     }
   }).catch(() => {
     let elEstado = document.querySelector('.pesaje-estado');
+    let elTotal = document.querySelector('#pesajeTotal');
+    if (elTotal) elTotal.innerHTML = 'Total: $ —';
     if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Error leyendo la gramera'; elEstado.className = "pesaje-estado pesaje-error"; }
   });
 }
@@ -885,6 +900,7 @@ function cerrarPesajePopup() {
   _pesajePopupId = null;
   _pesajePopupModo = 'agregar';
   _pesajePopupPeso = null;
+  _pesajePopupProducto = null;
   popup.close();
 }
 
