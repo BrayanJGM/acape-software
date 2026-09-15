@@ -2321,9 +2321,9 @@ function listIngresosEgresos() {
   })
 }
 
-// GENERAR EXCEL DEL CIERRE DE CAJA (SheetJS)
+// GENERAR EXCEL DEL CIERRE DE CAJA
 function generarExcelCierre(caja) {
-  if (typeof XLSX === 'undefined') {
+  if (typeof ExcelJS === 'undefined') {
     return Toast.fire({ title: "Excel", text: "La librería de Excel no está cargada. Recarga la página (Ctrl+F5).", icon: "error" });
   }
   if (!caja) return Toast.fire({ title: "Excel", text: "No hay caja para exportar.", icon: "warning" });
@@ -2333,7 +2333,9 @@ function generarExcelCierre(caja) {
   const ingresos = converterArray(caja.ingresos || []);
   const egresos = converterArray(caja.egresos || []);
 
-  const wb = XLSX.utils.book_new();
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'ACAPE';
+  wb.created = new Date();
 
   function productosDeVenta(v) {
     let arr = (Array.isArray(v.products) && v.products.length) ? v.products
@@ -2368,8 +2370,49 @@ function generarExcelCierre(caja) {
     let d = (v.date != null ? v.date : (v.cerrada || Date.now()));
     return new Date(d).toLocaleString();
   }
-  function ancho(sheet, widths) {
-    sheet['!cols'] = widths.map(w => ({ wch: w }));
+  function estilizarHoja(hoja, filas, opts) {
+    const nCols = Math.max(filas[0].length, opts.anchos ? opts.anchos.length : 0);
+    hoja.columns = Array.from({ length: nCols }, (_, c) => ({ width: (opts.anchos && opts.anchos[c]) || 18 }));
+
+    filas.forEach((fila, i) => {
+      const row = hoja.addRow(fila);
+      if (opts.tituloFila && i === 0) {
+        const t = row.getCell(1);
+        t.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+        t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+        t.alignment = { horizontal: 'center', vertical: 'middle' };
+        if (nCols > 1) hoja.mergeCells(1, 1, 1, nCols);
+      } else if (opts.cabecera && i === 0) {
+        row.eachCell((c) => {
+          c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+          c.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+      } else {
+        (opts.monedaCol || []).forEach((cin) => {
+          const celda = row.getCell(cin + 1);
+          if (typeof celda.value === 'number') {
+            celda.numFmt = '#,##0';
+            celda.alignment = { horizontal: 'right' };
+          }
+        });
+        if (opts.etiquetaCol !== undefined && fila[opts.etiquetaCol] !== undefined) {
+          const celda = row.getCell(opts.etiquetaCol + 1);
+          celda.font = { bold: true };
+          celda.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+        }
+        if (opts.resaltar && opts.resaltar.indexOf(i) >= 0) {
+          row.eachCell((c) => {
+            c.font = { bold: true };
+            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E2F3' } };
+          });
+        }
+      }
+    });
+
+    (opts.wrapCol || []).forEach((cin) => { hoja.getColumn(cin + 1).alignment = { wrapText: true }; });
+    if (opts.cabecera) hoja.views = [{ state: 'frozen', ySplit: 1 }];
+    return hoja;
   }
 
   // 1. RESUMEN
@@ -2391,9 +2434,12 @@ function generarExcelCierre(caja) {
     ['Cantidad de Ventas', ventas.length],
     ['Ventas Anuladas', eliminadas.length]
   ];
-  let shResumen = XLSX.utils.aoa_to_sheet(resumen);
-  ancho(shResumen, [25, 30]);
-  XLSX.utils.book_append_sheet(wb, shResumen, 'Resumen');
+  let shResumen = estilizarHoja(wb.addWorksheet('Resumen'), resumen, {
+    tituloFila: true,
+    etiquetaCol: 0,
+    monedaCol: [1],
+    ancho: [25, 45]
+  });
 
   // 2. VENTAS
   let ventasAoa = [['#', 'Fecha', 'Tipo de Pago', 'Productos', 'Unidades', 'Recibido', 'Total Venta', 'Cambio', 'Cliente']];
@@ -2409,9 +2455,12 @@ function generarExcelCierre(caja) {
     let recibido = recibidoVenta(v);
     ventasAoa.push([i + 1, fechaVenta(v), tipoPagoVenta(v), txt.join('; '), unidades, recibido, total, recibido - total, v.cliente || 'Consumidor Final']);
   });
-  let shVentas = XLSX.utils.aoa_to_sheet(ventasAoa);
-  ancho(shVentas, [6, 20, 18, 55, 10, 13, 13, 12, 22]);
-  XLSX.utils.book_append_sheet(wb, shVentas, 'Ventas');
+  let shVentas = estilizarHoja(wb.addWorksheet('Ventas'), ventasAoa, {
+    cabecera: true,
+    monedaCol: [5, 6, 7],
+    wrapCol: [3],
+    ancho: [6, 20, 18, 55, 10, 14, 14, 12, 22]
+  });
 
   // 3. PRODUCTOS RESUMIDOS
   let prodMap = {};
@@ -2424,10 +2473,19 @@ function generarExcelCierre(caja) {
     });
   });
   let prodAoa = [['Producto', 'Unidades Vendidas', 'Total Vendido $']];
-  Object.keys(prodMap).sort().forEach(k => prodAoa.push([k, prodMap[k].cantidad, Math.round(prodMap[k].total)]));
-  let shProd = XLSX.utils.aoa_to_sheet(prodAoa);
-  ancho(shProd, [40, 20, 18]);
-  XLSX.utils.book_append_sheet(wb, shProd, 'Productos Resumidos');
+  let totalUnd = 0, totalVal = 0;
+  Object.keys(prodMap).sort().forEach(k => {
+    prodAoa.push([k, prodMap[k].cantidad, Math.round(prodMap[k].total)]);
+    totalUnd += prodMap[k].cantidad;
+    totalVal += prodMap[k].total;
+  });
+  prodAoa.push(['TOTAL', totalUnd, Math.round(totalVal)]);
+  let shProd = estilizarHoja(wb.addWorksheet('Productos Resumidos'), prodAoa, {
+    cabecera: true,
+    monedaCol: [2],
+    resaltar: [prodAoa.length - 1],
+    ancho: [40, 20, 18]
+  });
 
   // 4. VENTAS ANULADAS
   let anulAoa = [['#', 'Fecha', 'Productos', 'Total']];
@@ -2435,23 +2493,32 @@ function generarExcelCierre(caja) {
     let txt = productosDeVenta(v).map(p => { let lp = lineaProducto(p); return lp.name + ' x' + lp.cantidad; }).join('; ');
     anulAoa.push([i + 1, fechaVenta(v), txt, totalVenta(v)]);
   });
-  let shAnul = XLSX.utils.aoa_to_sheet(anulAoa);
-  ancho(shAnul, [6, 20, 55, 13]);
-  XLSX.utils.book_append_sheet(wb, shAnul, 'Ventas Anuladas');
+  let shAnul = estilizarHoja(wb.addWorksheet('Ventas Anuladas'), anulAoa, {
+    cabecera: true,
+    monedaCol: [3],
+    wrapCol: [2],
+    ancho: [6, 20, 55, 14]
+  });
 
   // 5. INGRESOS
   let ingAoa = [['Fecha', 'Descripcion', 'Valor $']];
   ingresos.forEach(ch => ingAoa.push([ch.date ? new Date(ch.date).toLocaleString() : '', ch.description || '', Number(ch.money || 0)]));
-  let shIng = XLSX.utils.aoa_to_sheet(ingAoa);
-  ancho(shIng, [20, 45, 14]);
-  XLSX.utils.book_append_sheet(wb, shIng, 'Ingresos');
+  let shIng = estilizarHoja(wb.addWorksheet('Ingresos'), ingAoa, {
+    cabecera: true,
+    monedaCol: [2],
+    wrapCol: [1],
+    ancho: [20, 45, 16]
+  });
 
   // 6. EGRESOS
   let egrAoa = [['Fecha', 'Descripcion', 'Valor $']];
   egresos.forEach(ch => egrAoa.push([ch.date ? new Date(ch.date).toLocaleString() : '', ch.description || '', Number(ch.money || 0)]));
-  let shEgr = XLSX.utils.aoa_to_sheet(egrAoa);
-  ancho(shEgr, [20, 45, 14]);
-  XLSX.utils.book_append_sheet(wb, shEgr, 'Egresos');
+  let shEgr = estilizarHoja(wb.addWorksheet('Egresos'), egrAoa, {
+    cabecera: true,
+    monedaCol: [2],
+    wrapCol: [1],
+    ancho: [20, 45, 16]
+  });
 
   // 7. OBSERVACIONES
   let obs = [];
@@ -2461,12 +2528,23 @@ function generarExcelCierre(caja) {
   });
   eliminadas.forEach(el => obs.push('Se elimino una venta por: ' + formatNumber(totalVenta(el))));
   let obsAoa = [['Observaciones']].concat(obs.map(o => [o]));
-  let shObs = XLSX.utils.aoa_to_sheet(obsAoa);
-  ancho(shObs, [120]);
-  XLSX.utils.book_append_sheet(wb, shObs, 'Observaciones');
+  let shObs = estilizarHoja(wb.addWorksheet('Observaciones'), obsAoa, {
+    cabecera: true,
+    ancho: [120]
+  });
 
   let fecha = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, ('Cierre de Caja ' + (caja.id ? '#' + caja.id + ' ' : '') + fecha + '.xlsx'));
+  const nombreArchivo = 'Cierre de Caja ' + (caja.id ? '#' + caja.id + ' ' : '') + fecha + '.xlsx';
+  wb.xlsx.writeBuffer().then((buffer) => {
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombreArchivo;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  });
 }
 
 function sendCerrarCaja() {
