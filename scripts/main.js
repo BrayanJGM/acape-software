@@ -3477,15 +3477,18 @@ function reciboVentaHTML(venta) {
       <span class="ft-col-val">VALOR</span>
     </div>
 
-    ${productos.map(ch => `
+    ${productos.map(ch => {
+      let unitario = (ch.precio_unitario != null ? ch.precio_unitario : ch.price) || 0;
+      let valor = ch.precio_final != null ? ch.precio_final : (Number(unitario) * Number(ch.cantidad || 1));
+      return `
       <div class="ft-item">
         <div class="ft-item-row">
           <span class="ft-col-desc">${ch.name}</span>
-          <span class="ft-col-val ft-val">${ftMoney(ch.precio_final)}</span>
+          <span class="ft-col-val ft-val">${ftMoney(valor)}</span>
         </div>
-        <div class="ft-sub">x${ch.cantidad} @ ${ftMoney(ch.precio_unitario)}</div>
-      </div>
-    `).join('')}
+        <div class="ft-sub">x${ch.cantidad} @ ${ftMoney(unitario)}</div>
+      </div>`;
+    }).join('')}
 
     <div class="ft-espacio"></div>
 
