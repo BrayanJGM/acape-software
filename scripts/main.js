@@ -955,6 +955,15 @@ function listingEntrada() {
   document.querySelector('.edit-total').innerHTML = `$ ${formatNumber(finalPrice)}`;
 }
 
+function limpiarListadoVenta() {
+  sessionStorage.removeItem('actually-list-products');
+  listingProducts();
+  let buscando = document.querySelector('.searching');
+  if (buscando) buscando.innerHTML = '';
+  let inputBusqueda = document.querySelector('.reseting-listing');
+  if (inputBusqueda) inputBusqueda.value = '';
+}
+
 function sendCreateVenta(e, mayor, finalPrice, event) {
   event.preventDefault();
   let actuallyList = JSON.parse(sessionStorage.getItem('actually-list-products'));
@@ -1022,10 +1031,12 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
     setTimeout(() => { socket.emit('createVenta', data) }, 1000);
   }
 
-  popup.open({
+popup.open({
     title: "Venta hecha",
     content: `Total a pagar: ${formatNumber(finalPrice)} <br> Total Recibido: ${formatNumber(data.total_recibido)} <br><br> Vueltos: ${formatNumber(Number(removeCommaSeparators(e[1].value)) - finalPrice)} <br><br> <button class="btn btn-outline-info" onclick="popup.close()">Aceptar</button>`
   });
+
+  limpiarListadoVenta();
 
   return false;
 }
