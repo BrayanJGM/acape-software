@@ -1036,6 +1036,7 @@ class Database {
 	    log: this.createLog('createProduct', sha256(data.name).toString(), token),
 	    pesaje: data.pesaje,
 	    venta_por_peso: data.venta_por_peso ? "true" : "false",
+	    tecla: data.tecla != null ? String(data.tecla).trim().toLowerCase() : "",
 	    max_stock: data.max_stock
 	  };
 
@@ -1164,6 +1165,7 @@ class Database {
 	  findingProduct.pesaje = newInfo.pesaje;
 
 	  findingProduct.venta_por_peso = newInfo.venta_por_peso ? "true" : "false";
+	  findingProduct.tecla = newInfo.tecla != null ? String(newInfo.tecla).trim().toLowerCase() : (findingProduct.tecla || "");
 
 	  if(findingProduct.pesaje){
 	  	findingProduct.materia_prima = "true";

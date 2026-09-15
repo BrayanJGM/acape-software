@@ -789,6 +789,129 @@ function pesarProducto(id) {
   })
 }
 
+// ATAJOS DE TECLADO: VENTA RÁPIDA DESDE LA PANTALLA PRINCIPAL
+let _atajoPesando = false;
+
+function normalizarTecla(t) {
+  return String(t || '').trim().toLowerCase();
+}
+
+function renderAtajos() {
+  let cont = document.querySelector('.atajos-productos');
+  if (!cont) return;
+
+  let products = JSON.parse(sessionStorage.getItem('products') || "{}");
+  let porTecla = {};
+  converterArray(products).forEach(ch => {
+    let tk = normalizarTecla(ch.tecla);
+    if (!tk || !ch) return;
+    if (!porTecla[tk] || Number(ch.id) < Number(porTecla[tk].id)) porTecla[tk] = ch;
+  });
+
+  let atajos = Object.keys(porTecla).sort().map(tk => porTecla[tk]);
+
+  if (!atajos.length) {
+    cont.innerHTML = `<p class="small text-muted text-center">Para vender rápido, asigna teclas a tus productos (ficha del producto → “Tecla de acceso rápido”). También puedes usar el buscador.</p>`;
+    return;
+  }
+
+  cont.innerHTML = atajos.map(ch => {
+    let precio = ch.price ? formatNumber(ch.price) : "?";
+    let icono = ch.venta_por_peso == "true" ? '<i class="fa-solid fa-weight-scale" title="Por peso"></i> ' : "";
+    return `
+      <button class="atajo" data-tecla="${ch.tecla}" onclick="agregarPorTecla('${ch.id}')" title="${ch.name}">
+        <span class="atajo-tecla">${ch.tecla.toUpperCase()}</span>
+        <span class="atajo-nombre">${ch.name}</span>
+        <span class="atajo-precio">${icono}${precio}</span>
+      </button>`;
+  }).join('');
+}
+
+function capturarPesoEstable(tiempoMax = 8000) {
+  return new Promise((resolve, reject) => {
+    let inicio = Date.now();
+    let intentar = () => {
+      axios.get('/gramera/peso').then((resp) => {
+        const data = resp.data;
+        if (!data.conectada) return reject({ codigo: "desconectada" });
+        if (data.sobrecarga) return reject({ codigo: "sobrecarga" });
+        if (data.estable) return resolve(data.peso);
+        if (Date.now() - inicio > tiempoMax) return reject({ codigo: "tiempo" });
+        setTimeout(intentar, 400);
+      }).catch(() => {
+        if (Date.now() - inicio > tiempoMax) return reject({ codigo: "tiempo" });
+        setTimeout(intentar, 400);
+      });
+    };
+    intentar();
+  });
+}
+
+function agregarPorTecla(id, tecla) {
+  let products = JSON.parse(sessionStorage.getItem('products') || "{}");
+  let product = converterArray(products).find(ch => ch.id == id);
+  if (!product) return Toast.fire({ text: "Producto no encontrado.", icon: "error" });
+
+  let key = tecla || normalizarTecla(product.tecla);
+  let tile = document.querySelector(`.atajo[data-tecla="${key}"]`);
+  if (tile) {
+    tile.classList.add('atajo-press');
+    setTimeout(() => tile.classList.remove('atajo-press'), 400);
+  }
+
+  if (product.venta_por_peso != "true") {
+    setListProduct(id);
+    return;
+  }
+
+  if (_atajoPesando) return;
+  _atajoPesando = true;
+  if (tile) tile.classList.add('atajo-pesando');
+
+  capturarPesoEstable().then((peso) => {
+    peso = Number(Number(peso).toFixed(3));
+    setListProduct(id);
+    let list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
+    list.forEach((el) => { if (el.id == id) el.cantidad = peso; });
+    sessionStorage.setItem('actually-list-products', JSON.stringify(list));
+    listingProducts();
+    let precioFinal = Number(product.price || 0) * peso;
+    Toast.fire({ text: `${product.name} · ${peso} kg → $ ${formatNumber(precioFinal)}`, icon: "success" });
+  }).catch((err) => {
+    let msg = {
+      desconectada: "La gramera no está conectada.",
+      sobrecarga: "La gramera está en sobrecarga.",
+      tiempo: "La balanza no se estabilizó. Intenta de nuevo."
+    }[err.codigo] || "Error leyendo la gramera.";
+    Toast.fire({ text: msg, icon: "error" });
+  }).finally(() => {
+    _atajoPesando = false;
+    if (tile) tile.classList.remove('atajo-pesando');
+  });
+}
+
+document.addEventListener('keydown', (event) => {
+  let atajos = document.querySelector('.atajos-productos');
+  if (!atajos) return;
+
+  if (document.querySelector('.overlay.active')) return;
+  let target = event.target;
+  if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+
+  if (event.ctrlKey || event.altKey || event.metaKey) return;
+  if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab'].includes(event.key)) return;
+  if (event.key == 'Enter' || event.key == 'Escape') return;
+
+  let tecla = normalizarTecla(event.key);
+  if (!tecla) return;
+
+  let product = converterArray(JSON.parse(sessionStorage.getItem('products') || "{}")).find(ch => normalizarTecla(ch.tecla) == tecla);
+  if (!product) return;
+
+  event.preventDefault();
+  agregarPorTecla(product.id, tecla);
+});
+
 // ESTADO DE LA GRAMERA EN LA PANTALLA DE FACTURACIÓN
 function checkGramera() {
   axios.get('/gramera/peso').then((resp) => {
@@ -958,6 +1081,7 @@ function listingEntrada() {
 function limpiarListadoVenta() {
   sessionStorage.removeItem('actually-list-products');
   listingProducts();
+  renderAtajos();
   let buscando = document.querySelector('.searching');
   if (buscando) buscando.innerHTML = '';
   let inputBusqueda = document.querySelector('.reseting-listing');
@@ -1364,6 +1488,7 @@ router.get(['/', '', '/app'], () => {
       sessionStorage.setItem('products', JSON.stringify(data.data));
       sessionStorage.setItem('methods', JSON.stringify(data.methods))
       listingProducts()
+      renderAtajos()
     })
 
     return `<div class="container"><br><br>
@@ -1377,7 +1502,9 @@ router.get(['/', '', '/app'], () => {
         <button class="btn btn-outline-danger" onclick="borrarLista()"><i class="fa-solid fa-trash"></i> Borrar lista</button>
         <a class="btn btn-outline-success" href="/" target="_blank"><i class="fa-solid fa-plus"></i> Nuevo Espacio</a>
       </div>
-      <br><br>
+      <br>
+      <div class="atajos-productos mb-3"></div>
+      <br>
       <form class="productListening">
         <div class="input-group mb-3">
           <input type="text" class="form-control reseting-listing" oninput="inputVentas(this)" placeholder="12, Nombre Producto">
@@ -1445,6 +1572,7 @@ function sendEditProduct(e, id) {
     costo_adquisitivo: removeCommaSeparators(e[5].value),
     id_personalizado: removeCommaSeparators(e[6].value),
     venta_por_peso: e[7].checked,
+    tecla: e[8] ? e[8].value : '',
     id: id
   }
 
@@ -1522,6 +1650,13 @@ function editProduct(id) {
             </label>
             <p class="text-muted small">Si lo activas, el precio se tomará como precio por kilo y tendrás un botón Pesar al vender</p>
           </div>
+
+          <label>Tecla de acceso rápido (opcional)</label>
+          <p class="text-muted small">Presiona esa tecla en la pantalla de Facturación para vender este producto al instante.</p>
+          <div class="input-group mb-3">
+            <span class="input-group-text"><i class="fa-solid fa-keyboard"></i></span>
+            <input type="text" value="${info_inputs.tecla || ""}" class="form-control d-inline" placeholder="Ej: F2, Q, 5">
+          </div>
           <br>
           <div class="edit-buttons">
             <button class="btn btn-outline-primary w-100"><i class="fa-solid fa-pen"></i> Editar</button>
@@ -1557,7 +1692,8 @@ function sendCreateProduct(e) {
     stock: removeCommaSeparators(e[4].value),
     costo_adquisitivo: removeCommaSeparators(e[5].value),
     id_personalizado: e[6].value,
-    venta_por_peso: e[7].checked
+    venta_por_peso: e[7].checked,
+    tecla: e[8] ? e[8].value : ''
   }
   let token = sessionStorage.getItem('acape-session');
 
@@ -1620,6 +1756,13 @@ function createProduct() {
             </label>
             <p class="text-muted small">Si lo activas, el precio se tomará como precio por kilo y tendrás un botón Pesar al vender</p>
           </div>
+
+          <label>Tecla de acceso rápido (opcional)</label>
+          <p class="text-muted small">Presiona esa tecla en la pantalla de Facturación para vender este producto al instante.</p>
+          <div class="input-group mb-3">
+            <span class="input-group-text"><i class="fa-solid fa-keyboard"></i></span>
+            <input type="text" class="form-control d-inline" placeholder="Ej: F2, Q, 5">
+          </div>
           <br>
           <button class="btn btn-outline-primary d-block w-100">Crear Producto</button>
       </form>
@@ -1654,6 +1797,7 @@ function finalDetergente(data) {
           <th>IVA</th>
           <th>Cantidad</th>
           <th>Costo</th>
+          <th>Tecla</th>
           <th>Editar</th>
         </tr>
       </thead>
@@ -1670,6 +1814,7 @@ function finalDetergente(data) {
             <td>${ch.iva?ch.iva:0} %</td>
             <td># ${actual_stock==null?'Infinito':actual_stock}</td>
             <td>$ ${formatNumber(ch.costo_adquisitivo?ch.costo_adquisitivo:"0")}</td>
+            <td>${ch.tecla ? `<span class="badge tecla-badge">${ch.tecla.toUpperCase()}</span>` : ""}</td>
             <td><button class="btn btn-outline-success" onclick="editProduct('${ch.id}')"><i class="fa-solid fa-pen"></i></button></td>
           </tr>`;
         }).join('')}
