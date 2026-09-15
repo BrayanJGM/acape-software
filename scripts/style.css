@@ -747,7 +747,7 @@ a {
 }
 .ft-sub {
 	font-size: 10pt;
-	color: rgba(0, 0, 0, 0.6);
+	color: #000;
 	margin-top: 1px;
 }
 .ft-tot {
@@ -772,7 +772,7 @@ a {
 .ft-disclaimer {
 	text-align: center;
 	font-size: 10pt;
-	color: rgba(0, 0, 0, 0.55);
+	color: #000;
 	margin-top: 4px;
 }
 .price-data {

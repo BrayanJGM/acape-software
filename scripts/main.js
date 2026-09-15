@@ -3154,12 +3154,12 @@ function imprimirHTML(html) {
       .ft-item-row { display: flex; justify-content: space-between; align-items: baseline; }
       .ft-col-desc { flex: 1 1 auto; text-align: left; padding-right: 6px; white-space: normal; }
       .ft-col-val { white-space: nowrap; text-align: right; }
-      .ft-sub { font-size: 10pt; color: rgba(0, 0, 0, 0.6); margin-top: 1px; }
+      .ft-sub { font-size: 10pt; color: #000; margin-top: 1px; }
       .ft-tot { display: flex; justify-content: space-between; font-size: 12pt; padding: 1px 0; }
       .ft-val { text-align: right; white-space: nowrap; }
       .ft-separador { border-top: 1px dashed #000; margin: 5px 0 3px; }
       .ft-footer { text-align: center; font-size: 11pt; margin-top: 2px; }
-      .ft-disclaimer { text-align: center; font-size: 10pt; color: rgba(0, 0, 0, 0.55); margin-top: 4px; }
+      .ft-disclaimer { text-align: center; font-size: 10pt; color: #000; margin-top: 4px; }
       table, th, td { border: none !important; }
     </style>
     <div class="factura-termica">
