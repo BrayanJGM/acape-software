@@ -26,6 +26,7 @@
     "uuid": "^9.0.1",
     "web-push": "^3.6.7",
     "webpack-node-externals": "^3.0.0",
+    "xlsx": "^0.18.5",
     "xml2js": "^0.6.2"
   },
   "description": "",

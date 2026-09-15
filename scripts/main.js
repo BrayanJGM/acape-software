@@ -2321,6 +2321,154 @@ function listIngresosEgresos() {
   })
 }
 
+// GENERAR EXCEL DEL CIERRE DE CAJA (SheetJS)
+function generarExcelCierre(caja) {
+  if (typeof XLSX === 'undefined') {
+    return Toast.fire({ title: "Excel", text: "La librería de Excel no está cargada. Recarga la página (Ctrl+F5).", icon: "error" });
+  }
+  if (!caja) return Toast.fire({ title: "Excel", text: "No hay caja para exportar.", icon: "warning" });
+
+  const ventas = converterArray(caja.ventas_hechas || []);
+  const eliminadas = converterArray(caja.ventas_eliminadas || []);
+  const ingresos = converterArray(caja.ingresos || []);
+  const egresos = converterArray(caja.egresos || []);
+
+  const wb = XLSX.utils.book_new();
+
+  function productosDeVenta(v) {
+    let arr = (Array.isArray(v.products) && v.products.length) ? v.products
+            : (Array.isArray(v.venta) && v.venta.length) ? v.venta
+            : [];
+    return converterArray(arr);
+  }
+  function lineaProducto(p) {
+    let cantidad = Number(p.cantidad != null ? p.cantidad : (p.quantity || 1));
+    let unit = Number(p.precio_unitario != null ? p.precio_unitario : (p.price || 0));
+    let total = Number(p.precio_final != null ? p.precio_final : (unit * cantidad));
+    return { name: p.name || ('Producto #' + (p.id || '')), cantidad, unit, total };
+  }
+  function totalVenta(v) {
+    if (v.total_pago != null) return Number(v.total_pago);
+    let suma = 0;
+    productosDeVenta(v).forEach(p => { suma += lineaProducto(p).total; });
+    return suma;
+  }
+  function recibidoVenta(v) {
+    if (v.recibido != null) return Number(v.recibido);
+    if (v.total_recibido != null) return Number(v.total_recibido);
+    return totalVenta(v);
+  }
+  function tipoPagoVenta(v) {
+    if (v.digital) return 'Digital (' + v.digital + ')';
+    if (v.type && String(v.type).toLowerCase() != 'efectivo') return 'Digital (' + v.type + ')';
+    if (v.type) return String(v.type);
+    return 'Efectivo';
+  }
+  function fechaVenta(v) {
+    let d = (v.date != null ? v.date : (v.cerrada || Date.now()));
+    return new Date(d).toLocaleString();
+  }
+  function ancho(sheet, widths) {
+    sheet['!cols'] = widths.map(w => ({ wch: w }));
+  }
+
+  // 1. RESUMEN
+  let resumen = [
+    ['INFORME GENERAL'],
+    ['Caja #', caja.id || ''],
+    ['Apertura', caja.date ? new Date(caja.date).toLocaleString() : ''],
+    ['Cierre', caja.cerrada ? new Date(caja.cerrada).toLocaleString() : ''],
+    ['Responsable', caja.closedByName || ''],
+    [],
+    ['Dinero Inicial', Number(caja.starting || 0)],
+    ['Venta Total', Number(caja.total_recibido || 0)],
+    ['Ventas Digitales', Number(caja.value_digital || 0)],
+    ['Ingresos', Number(caja.ingreso || 0)],
+    ['Egresos', Number(caja.egreso || 0)],
+    ['Balance Final', Number(caja.value || 0)],
+    ['Total Entregado', Number(caja.value || 0) - Number(caja.starting || 0)],
+    [],
+    ['Cantidad de Ventas', ventas.length],
+    ['Ventas Anuladas', eliminadas.length]
+  ];
+  let shResumen = XLSX.utils.aoa_to_sheet(resumen);
+  ancho(shResumen, [25, 30]);
+  XLSX.utils.book_append_sheet(wb, shResumen, 'Resumen');
+
+  // 2. VENTAS
+  let ventasAoa = [['#', 'Fecha', 'Tipo de Pago', 'Productos', 'Unidades', 'Recibido', 'Total Venta', 'Cambio', 'Cliente']];
+  ventas.forEach((v, i) => {
+    let unidades = 0;
+    let txt = [];
+    productosDeVenta(v).forEach(p => {
+      let lp = lineaProducto(p);
+      unidades += lp.cantidad;
+      txt.push(lp.name + ' x' + lp.cantidad + ' = $' + formatNumber(lp.total));
+    });
+    let total = totalVenta(v);
+    let recibido = recibidoVenta(v);
+    ventasAoa.push([i + 1, fechaVenta(v), tipoPagoVenta(v), txt.join('; '), unidades, recibido, total, recibido - total, v.cliente || 'Consumidor Final']);
+  });
+  let shVentas = XLSX.utils.aoa_to_sheet(ventasAoa);
+  ancho(shVentas, [6, 20, 18, 55, 10, 13, 13, 12, 22]);
+  XLSX.utils.book_append_sheet(wb, shVentas, 'Ventas');
+
+  // 3. PRODUCTOS RESUMIDOS
+  let prodMap = {};
+  ventas.forEach(v => {
+    productosDeVenta(v).forEach(p => {
+      let lp = lineaProducto(p);
+      if (!prodMap[lp.name]) prodMap[lp.name] = { cantidad: 0, total: 0 };
+      prodMap[lp.name].cantidad += lp.cantidad;
+      prodMap[lp.name].total += lp.total;
+    });
+  });
+  let prodAoa = [['Producto', 'Unidades Vendidas', 'Total Vendido $']];
+  Object.keys(prodMap).sort().forEach(k => prodAoa.push([k, prodMap[k].cantidad, Math.round(prodMap[k].total)]));
+  let shProd = XLSX.utils.aoa_to_sheet(prodAoa);
+  ancho(shProd, [40, 20, 18]);
+  XLSX.utils.book_append_sheet(wb, shProd, 'Productos Resumidos');
+
+  // 4. VENTAS ANULADAS
+  let anulAoa = [['#', 'Fecha', 'Productos', 'Total']];
+  eliminadas.forEach((v, i) => {
+    let txt = productosDeVenta(v).map(p => { let lp = lineaProducto(p); return lp.name + ' x' + lp.cantidad; }).join('; ');
+    anulAoa.push([i + 1, fechaVenta(v), txt, totalVenta(v)]);
+  });
+  let shAnul = XLSX.utils.aoa_to_sheet(anulAoa);
+  ancho(shAnul, [6, 20, 55, 13]);
+  XLSX.utils.book_append_sheet(wb, shAnul, 'Ventas Anuladas');
+
+  // 5. INGRESOS
+  let ingAoa = [['Fecha', 'Descripcion', 'Valor $']];
+  ingresos.forEach(ch => ingAoa.push([ch.date ? new Date(ch.date).toLocaleString() : '', ch.description || '', Number(ch.money || 0)]));
+  let shIng = XLSX.utils.aoa_to_sheet(ingAoa);
+  ancho(shIng, [20, 45, 14]);
+  XLSX.utils.book_append_sheet(wb, shIng, 'Ingresos');
+
+  // 6. EGRESOS
+  let egrAoa = [['Fecha', 'Descripcion', 'Valor $']];
+  egresos.forEach(ch => egrAoa.push([ch.date ? new Date(ch.date).toLocaleString() : '', ch.description || '', Number(ch.money || 0)]));
+  let shEgr = XLSX.utils.aoa_to_sheet(egrAoa);
+  ancho(shEgr, [20, 45, 14]);
+  XLSX.utils.book_append_sheet(wb, shEgr, 'Egresos');
+
+  // 7. OBSERVACIONES
+  let obs = [];
+  egresos.forEach(el => {
+    if (Number(el.money) == 0) obs.push('Se abrio la caja ' + (el.description ? ('para: ' + el.description) : 'Sin motivo alguno.'));
+    if (String(el.description || '').startsWith('Prestamo >')) obs.push('Se Hizo Un Prestamo A ' + el.description.slice(10) + '. Por Un Valor De: ' + formatNumber(el.money));
+  });
+  eliminadas.forEach(el => obs.push('Se elimino una venta por: ' + formatNumber(totalVenta(el))));
+  let obsAoa = [['Observaciones']].concat(obs.map(o => [o]));
+  let shObs = XLSX.utils.aoa_to_sheet(obsAoa);
+  ancho(shObs, [120]);
+  XLSX.utils.book_append_sheet(wb, shObs, 'Observaciones');
+
+  let fecha = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, ('Cierre de Caja ' + (caja.id ? '#' + caja.id + ' ' : '') + fecha + '.xlsx'));
+}
+
 function sendCerrarCaja() {
   let caja = JSON.parse(localStorage.getItem('caja'));
   let token = sessionStorage.getItem('acape-session');
@@ -2371,6 +2519,7 @@ function sendCerrarCaja() {
       observaciones.push(`Se elimino una venta por: ${formatNumber(element.total_pago)}`);
     })
 
+    generarExcelCierre(ultimateCaja);
 
     document.querySelector('body').innerHTML = `
       <style>
@@ -2476,6 +2625,7 @@ function cerrarCaja() {
         <hr>
         <p>Dinero total: ${formatNumber(caja.value)}</p>
         <hr>
+        <button class="btn btn-outline-success" onclick="generarExcelCierre(JSON.parse(localStorage.getItem('caja')))">Descargar Excel <i class="fa-solid fa-file-excel"></i></button>
         <button class="btn btn-outline-success" onclick="sendCerrarCaja()">Cerrar Caja <i class="fa-solid fa-x"></i></button>
       </div>
     `
