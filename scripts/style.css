@@ -411,7 +411,7 @@ label {
 }
 .factura-body th, .factura-body td{
 	padding: 2px !important;
-	border: none !important;,
+	border: none !important;
 	padding-left: inherit;
 	font-size: 10pt !important;
 	text-align: center;
@@ -584,6 +584,94 @@ a {
 	width: 100%;
 	padding: 5px;
 	font-weight: normal;
+}
+
+/* TICKET TÉRMICO 80mm (factura de venta compacta) */
+.ft-head {
+	text-align: center;
+	margin-bottom: 2px;
+}
+.ft-emp {
+	font-size: 11pt;
+	font-weight: bold;
+	text-transform: uppercase;
+}
+.ft-slogan {
+	font-size: 8pt;
+}
+.ft-line {
+	display: flex;
+	justify-content: space-between;
+	font-size: 8pt;
+	padding: 1px 0;
+}
+.ft-strong span {
+	font-weight: bold;
+}
+.ft-divider {
+	border-top: 1px dashed #000;
+	margin-top: 4px;
+	padding-top: 4px;
+	font-size: 8pt;
+}
+.ft-headrow {
+	display: flex;
+	justify-content: space-between;
+	border-top: 1px solid #000;
+	border-bottom: 1px solid #000;
+	font-weight: bold;
+	font-size: 8pt;
+	padding: 2px 0;
+	margin-top: 3px;
+}
+.ft-item {
+	border-bottom: 1px dashed rgba(0, 0, 0, 0.2);
+	padding: 3px 0;
+}
+.ft-item-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+}
+.ft-col-desc {
+	flex: 1 1 auto;
+	text-align: left;
+	padding-right: 6px;
+	white-space: normal;
+}
+.ft-col-val {
+	white-space: nowrap;
+	text-align: right;
+}
+.ft-sub {
+	font-size: 7pt;
+	color: rgba(0, 0, 0, 0.6);
+	margin-top: 1px;
+}
+.ft-tot {
+	display: flex;
+	justify-content: space-between;
+	font-size: 8pt;
+	padding: 1px 0;
+}
+.ft-val {
+	text-align: right;
+	white-space: nowrap;
+}
+.ft-separador {
+	border-top: 1px dashed #000;
+	margin: 5px 0 3px;
+}
+.ft-footer {
+	text-align: center;
+	font-size: 7.5pt;
+	margin-top: 2px;
+}
+.ft-disclaimer {
+	text-align: center;
+	font-size: 6.5pt;
+	color: rgba(0, 0, 0, 0.55);
+	margin-top: 4px;
 }
 .price-data {
 	font-size: inherit;

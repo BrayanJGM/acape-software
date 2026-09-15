@@ -1011,6 +1011,15 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
 
   let finding_method = array_methods.find(ch => data.type == ch.name);
 
+  window._ventaReciboSnapshot = {
+    venta: actuallyList,
+    total_pago: finalToPay,
+    recibido: data.total_recibido,
+    digital: (finding_method && finding_method.type == "digital") ? finding_method.name : null,
+    clientId: data.clientId,
+    date: data.date
+  };
+
   if (finding_method && finding_method.type == "digital") {
     setTimeout(() => {
       socket.emit('createVentaDigital', data);
@@ -1033,12 +1042,29 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
 
 popup.open({
     title: "Venta hecha",
-    content: `Total a pagar: ${formatNumber(finalPrice)} <br> Total Recibido: ${formatNumber(data.total_recibido)} <br><br> Vueltos: ${formatNumber(Number(removeCommaSeparators(e[1].value)) - finalPrice)} <br><br> <button class="btn btn-outline-info" onclick="popup.close()">Aceptar</button>`
+    content: `Total a pagar: ${formatNumber(finalPrice)} <br> Total Recibido: ${formatNumber(data.total_recibido)} <br><br> Vueltos: ${formatNumber(Number(removeCommaSeparators(e[1].value)) - finalPrice)} <br><br> <button class="btn btn-outline-success" onclick="imprimirReciboVenta()">Imprimir recibo</button> <button class="btn btn-outline-info" onclick="popup.close()">Aceptar</button>`
   });
 
   limpiarListadoVenta();
 
   return false;
+}
+
+function imprimirReciboVenta() {
+  let snap = window._ventaReciboSnapshot;
+  if (!snap) return Toast.fire({ title: "Recibo", text: "No hay una venta reciente para imprimir.", icon: "warning" });
+
+  getClientesVenta((lista) => {
+    let cliente = lista.find(c => String(c.id) === String(snap.clientId));
+    imprimirHTML(reciboVentaHTML({
+      products: snap.venta,
+      total_pago: snap.total_pago,
+      recibido: snap.recibido,
+      digital: snap.digital,
+      cliente: cliente ? cliente.name : "Consumidor Final",
+      date: snap.date
+    }));
+  });
 }
 
 function getClientesVenta(respuesta) {
@@ -2764,13 +2790,16 @@ function updateFacturas(funcToExec) {
   })
 }
 
-function imprimirFactura() {
-  let element = document.querySelector('.factura-termica');
+function imprimirHTML(html) {
   document.querySelector('body').innerHTML = `
+    <style>
+      @page { size: 80mm auto; margin: 0; }
+      html, body { margin: 0; padding: 0; background: #fff; }
+      .factura-termica { width: 72mm; margin: 0 auto; font-family: monospace; font-size: 8pt; line-height: 1.25; padding: 2mm; }
+      table, th, td { border: none !important; }
+    </style>
     <div class="factura-termica">
-      ${element.innerHTML}
-
-      -- ESTE DOCUMENTO DOCUMENTO ES UNICAMENTE INFORMATIVO, NO ES FACTURA LEGAL NI DE CAMBIO, SOLO TIENE LA INFORMACIÓN SOBRE LA VENTA GENERADA. SI NECESITA UNA FACTURA ELECTRONICA AVISAR DESPUES DE LA COMPRA O DAR ESTE DOCUMENTO
+      ${html}
     </div>
   `;
   window.print();
@@ -2778,6 +2807,17 @@ function imprimirFactura() {
   setTimeout(() => {
     location.reload()
   }, 1000)
+}
+
+function imprimirFactura() {
+  let element = document.querySelector('.factura-termica');
+  if (!element) return Toast.fire({
+    title: "Imprimir",
+    text: "No hay un documento listo para imprimir.",
+    icon: "warning"
+  });
+
+  imprimirHTML(element.innerHTML);
 }
 
 function generarPDF(id, ele, pd) {
@@ -2811,6 +2851,67 @@ function generarNumeroFactura(num, px) {
   return prefix + numStr;
 }
 
+// Moneda compacta para ticket térmico (sin decimales cuando el monto es entero)
+function ftMoney(n) {
+  let num = Number(n) || 0;
+  let texto = formatNumber(num);
+  return (num % 1 === 0) ? texto.replace(/\.00$/, '') : texto;
+}
+
+// DOMINIO TEMPORAL: devuelve el HTML del ticket térmico (80mm) de una venta
+function reciboVentaHTML(venta) {
+  let configs = !localStorage.getItem('configs') ? {} : JSON.parse(localStorage.getItem('configs'));
+  let productos = converterArray(venta.products || []);
+  let fecha = new Date(venta.date || Date.now());
+  let pagodigital = venta.digital ? 'Transferencia > ' + venta.digital : 'Efectivo > De Contado';
+  let numero = (venta.id != null) ? generarNumeroFactura(venta.id) + '  &nbsp;' : '';
+
+  return `
+    <div class="ft-head">
+      <div class="ft-emp">${configs.name ? configs.name : "Factura Desprendible"}</div>
+      <div class="ft-slogan">${configs.slogan ? configs.slogan : "Para servirte"}</div>
+      ${configs.user ? `<div class="ft-line">${configs.user.name || ""}</div>` : ""}
+      ${configs.user ? `<div class="ft-line">NIT: ${configs.user.document || ""}  Tel: ${configs.user.phone || ""}${configs.user.email ? "  " + configs.user.email : ""}</div>` : ""}
+      <div class="ft-divider">${numero}${fecha.toLocaleDateString()} &nbsp; ${fecha.toLocaleTimeString()}</div>
+    </div>
+
+    <div class="ft-headrow">
+      <span class="ft-col-desc">DESCRIPCION</span>
+      <span class="ft-col-val">VALOR</span>
+    </div>
+
+    ${productos.map(ch => `
+      <div class="ft-item">
+        <div class="ft-item-row">
+          <span class="ft-col-desc">${ch.name}</span>
+          <span class="ft-col-val ft-val">${ftMoney(ch.precio_final)}</span>
+        </div>
+        <div class="ft-sub">x${ch.cantidad} @ ${ftMoney(ch.precio_unitario)}</div>
+      </div>
+    `).join('')}
+
+    <div class="ft-tot">
+      <span>Cliente:</span><span class="ft-val">${venta.cliente ? venta.cliente : "Consumidor Final"}</span>
+    </div>
+    <div class="ft-tot">
+      <span>Pago:</span><span class="ft-val">${pagodigital}</span>
+    </div>
+    <div class="ft-line ft-strong">
+      <span>TOTAL</span><span class="ft-val">${ftMoney(venta.total_pago)}</span>
+    </div>
+    <div class="ft-line">
+      <span>RECIBIDO</span><span class="ft-val">${ftMoney(venta.recibido)}</span>
+    </div>
+    <div class="ft-line">
+      <span>CAMBIO</span><span class="ft-val">${ftMoney(Number(venta.recibido || 0) - Number(venta.total_pago || 0))}</span>
+    </div>
+
+    <div class="ft-separador"></div>
+    <div class="ft-footer">${configs.footer ? configs.footer : ""}</div>
+    <div class="ft-disclaimer">ESTE DOCUMENTO ES INFORMATIVO, NO ES FACTURA LEGAL NI DE CAMBIO. SI NECESITA FACTURA ELECTRONICA AVISAR DESPUES DE LA COMPRA.</div>
+  `;
+}
+
 
 // HERE STAY
 
@@ -2840,48 +2941,7 @@ function factVenta(id) {
       <div class="facturar pd-1">
         <hr>
         <div class="factura-termica">
-          <div class="factura-head">
-            <h1 class="text-center">${configs.name?configs.name:"Factura Desprendible"}</h1>
-            <p class="text-center">${configs.slogan?configs.slogan:"Para servirte"}</p>
-            <p class="text-center"><span>${configs.user.name} <br> NIT: ${configs.user.document}</span> <br> Telefono: ${configs.user.phone}</p>
-            <p class="text-center">Email: ${configs.user.email}</p>
-            <p class="text-center">${generarNumeroFactura(id)} - ${new Date(finding_venta.date).toLocaleDateString()}</p>
-            <br>
-          </div>
-          <table class="factura-body">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>DESC</th>
-                <th>P.U</th>
-                <th>CT</th>
-                <th>P.F</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${converterArray(finding_venta.products).map(ch => `
-                <tr>
-                  <td>${ch.id}</td>
-                  <td>${ch.name}</td>
-                  <td>${formatNumber(ch.precio_unitario)}</td>
-                  <td>${ch.cantidad}</td>
-                  <td>${formatNumber(ch.precio_final)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          <br>
-          <span><b>Cliente:</b> <l class="change-user">${finding_venta.cliente?finding_venta.cliente:"Consumidor Final"}</l></span><br>
-          <span><b>Pago a través de: ${finding_venta.digital?("Transferencia Bancaria > "+finding_venta.digital):"Efectivo > De Contado."}</b></span>
-          <br><br>
-          <span><b>Total:</b> $ ${formatNumber(finding_venta.total_pago)}</span>
-          <br>
-          <span><b>Recibido: </b> $ ${formatNumber(finding_venta.recibido)}</span>
-          <hr>
-          <span><b>Vueltos: </b>$ ${formatNumber(Number(finding_venta.recibido) - Number(finding_venta.total_pago))}</span>
-          <br>
-          <br><br>
-          <p class="text-center">${configs.footer}</p>
+          ${reciboVentaHTML(finding_venta)}
         </div>
 
         <hr>
