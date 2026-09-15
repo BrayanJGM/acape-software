@@ -681,11 +681,11 @@ a {
 	font-size: 1.125rem;
 }
 .factura-termica {
-	font-family: monospace;
-	font-size: 9pt;
+	font-family: 'Courier New', Courier, monospace;
+	font-size: 10pt;
 	width: 100%;
 	padding: 5px;
-	font-weight: normal;
+	font-weight: bold;
 }
 
 /* TICKET TÉRMICO 80mm (factura de venta compacta) */
@@ -699,12 +699,12 @@ a {
 	text-transform: uppercase;
 }
 .ft-slogan {
-	font-size: 8pt;
+	font-size: 9pt;
 }
 .ft-line {
 	display: flex;
 	justify-content: space-between;
-	font-size: 8pt;
+	font-size: 9pt;
 	padding: 1px 0;
 }
 .ft-strong span {
@@ -714,7 +714,7 @@ a {
 	border-top: 1px dashed #000;
 	margin-top: 4px;
 	padding-top: 4px;
-	font-size: 8pt;
+	font-size: 9pt;
 }
 .ft-headrow {
 	display: flex;
@@ -722,7 +722,7 @@ a {
 	border-top: 1px solid #000;
 	border-bottom: 1px solid #000;
 	font-weight: bold;
-	font-size: 8pt;
+	font-size: 9pt;
 	padding: 2px 0;
 	margin-top: 3px;
 }
@@ -746,14 +746,14 @@ a {
 	text-align: right;
 }
 .ft-sub {
-	font-size: 7pt;
+	font-size: 7.5pt;
 	color: rgba(0, 0, 0, 0.6);
 	margin-top: 1px;
 }
 .ft-tot {
 	display: flex;
 	justify-content: space-between;
-	font-size: 8pt;
+	font-size: 9pt;
 	padding: 1px 0;
 }
 .ft-val {
@@ -766,12 +766,12 @@ a {
 }
 .ft-footer {
 	text-align: center;
-	font-size: 7.5pt;
+	font-size: 8pt;
 	margin-top: 2px;
 }
 .ft-disclaimer {
 	text-align: center;
-	font-size: 6.5pt;
+	font-size: 7pt;
 	color: rgba(0, 0, 0, 0.55);
 	margin-top: 4px;
 }

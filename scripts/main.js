@@ -3142,7 +3142,7 @@ function imprimirHTML(html) {
     <style>
       @page { size: 80mm auto; margin: 0; }
       html, body { margin: 0; padding: 0; background: #fff; }
-      .factura-termica { width: 72mm; margin: 0 auto; font-family: monospace; font-size: 8pt; line-height: 1.25; padding: 2mm; }
+      .factura-termica { width: 72mm; margin: 0 auto; font-family: 'Courier New', Courier, monospace; font-size: 10pt; font-weight: bold; line-height: 1.25; padding: 2mm; }
       table, th, td { border: none !important; }
     </style>
     <div class="factura-termica">
