@@ -3161,6 +3161,10 @@ function imprimirHTML(html) {
       .ft-footer { text-align: center; font-size: 11pt; margin-top: 2px; }
       .ft-disclaimer { text-align: center; font-size: 10pt; color: #000; margin-top: 4px; }
       table, th, td { border: none !important; }
+      @media print {
+        body { width: 78mm; margin: 0; padding: 0; color: #000000 !important; background: #ffffff !important; -webkit-font-smoothing: none !important; -moz-osx-font-smoothing: unset !important; font-smooth: never !important; text-rendering: optimizeSpeed !important; }
+        * { text-shadow: none !important; box-shadow: none !important; filter: none !important; }
+      }
     </style>
     <div class="factura-termica">
       ${html}
