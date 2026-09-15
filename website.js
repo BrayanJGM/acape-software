@@ -1565,6 +1565,7 @@ const service = server.listen(server.get('port'), () => {
   console.log(`Aplicativo y servidor encendido en el puerto: ${server.get('port')}`);
   console.timeEnd('service');
 
+  require('./APIS/tunnel.js').start();
 
   let finalStock = database.viewingStock();
   if(!finalStock[0]) return;

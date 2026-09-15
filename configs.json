@@ -9,5 +9,19 @@
 		"port": "COM3",
 		"baudRate": 9600,
 		"debug": false
+	},
+	"tunnel": {
+		"enabled": true,
+		"hostname": "",
+		"notifyWhatsapp": false,
+		"notifyEmail": true,
+		"mail": {
+			"host": "smtp.gmail.com",
+			"port": 465,
+			"secure": true,
+			"user": "TU.GMAIL@gmail.com",
+			"pass": "TU-CONTRASEÑA-DE-APP",
+			"to": "TU.GMAIL@gmail.com"
+		}
 	}
 }
