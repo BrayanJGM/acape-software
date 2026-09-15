@@ -1600,6 +1600,8 @@ final_venta.vueltas = final_venta.recibido - final_venta.total_pago;
 			date: new Date()-0,
 			city: data.city,
 			direccion: data.direccion,
+			categoria: data.categoria != null ? String(data.categoria).trim() : "",
+			proviene: data.proviene != null ? String(data.proviene).trim() : "",
 			compras: [],
 			id: ids.clientes
 		}
@@ -1655,6 +1657,8 @@ final_venta.vueltas = final_venta.recibido - final_venta.total_pago;
 				date: new Date() - 0,
 				city: item.city != null ? String(item.city).trim() : "",
 				direccion: item.direccion != null ? String(item.direccion).trim() : "",
+				categoria: item.categoria != null ? String(item.categoria).trim() : "",
+				proviene: item.proviene != null ? String(item.proviene).trim() : "",
 				compras: [],
 				id: ids.clientes
 			};
@@ -1693,6 +1697,8 @@ final_venta.vueltas = final_venta.recibido - final_venta.total_pago;
 		clients[data.id].correo = data.correo;
 		clients[data.id].city = data.city
 		clients[data.id].direccion = data.direccion;
+		clients[data.id].categoria = data.categoria != null ? String(data.categoria).trim() : (clients[data.id].categoria || "");
+		clients[data.id].proviene = data.proviene != null ? String(data.proviene).trim() : (clients[data.id].proviene || "");
 
 		this.db.setData('/data/simple/clientes', clients);
 

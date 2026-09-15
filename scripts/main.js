@@ -2292,6 +2292,8 @@ function editClient(id, e) {
     correo: e[4].value,
     city: e[5].value,
     direccion: e[6].value,
+    categoria: e[7] ? e[7].value : '',
+    proviene: e[8] ? e[8].value : '',
     id: id
   }
 
@@ -2345,6 +2347,12 @@ function editarCliente(id) {
 
           <label>Dirección del pedido / vivienda</label>
           <input type="text" value="${cliente.direccion}" required class="form-control" placeholder="Calle #15 12-13">
+
+          <label>Categoría (opcional)</label>
+          <input type="text" value="${cliente.categoria || ""}" class="form-control" placeholder="Ej: Empresa">
+
+          <label>Proviene de (opcional)</label>
+          <input type="text" value="${cliente.proviene || ""}" class="form-control" placeholder="Ej: nombre de la empresa">
           <br>
           <div class="edit-buttons">
             <button class="btn btn-outline-info w-100"><i class="fa-solid fa-pen"></i> Editar</button>
@@ -2372,6 +2380,8 @@ function reloadClientes() {
         <td>${ch.name}</td>
         <td>${ch.document}</td>
         <td>${ch.phone}</td>
+        <td>${ch.categoria || ""}</td>
+        <td>${ch.proviene || ""}</td>
         <td>
           <button class="btn btn-outline-info" onclick="editarCliente('${ch.id}')"><i class="fa-solid fa-pen"></i></button>
           <button class="btn btn-outline-primary" onclick="verComprasCliente(${ch.id})"><i class="fa-solid fa-bag-shopping"></i> Compras</button>
@@ -2469,7 +2479,9 @@ function submitCreateClient(e) {
     phone: e[3].value,
     correo: e[4].value,
     city: e[5].value,
-    direccion: e[6].value
+    direccion: e[6].value,
+    categoria: e[7] ? e[7].value : '',
+    proviene: e[8] ? e[8].value : ''
   }
   let token = sessionStorage.getItem('acape-session');
   socket.emit('createClient', {
@@ -2517,6 +2529,14 @@ function createClient() {
 
         <label>Dirección del pedido / vivienda</label>
         <input type="text" required class="form-control" placeholder="Calle #15 12-13">
+
+        <br>
+        <label>Categoría (opcional)</label>
+        <input type="text" class="form-control" placeholder="Ej: Empresa">
+
+        <br>
+        <label>Proviene de (opcional)</label>
+        <input type="text" class="form-control" placeholder="Ej: nombre de la empresa">
         <br>
         <button required class="btn btn-outline-primary d-block w-100">Guardar Cliente</button>
       </form>
@@ -2537,6 +2557,21 @@ function importarClientes() {
           <option value="ti">T.I</option>
           <option value="ex">Ext</option>
         </select>
+
+        <div class="row mt-1 mb-2">
+          <div class="col-6">
+            <label class="small">Categoría (opcional, se aplica a todos)</label>
+            <input id="categoriaImport" class="form-control form-control-sm" type="text" placeholder="Ej: Empresa" oninput="previewImportarClientes()" list="listaCategorias">
+            <datalist id="listaCategorias">
+              <option value="Empresa"></option>
+              <option value="Persona Natural"></option>
+            </datalist>
+          </div>
+          <div class="col-6">
+            <label class="small">Proviene de (opcional, se aplica a todos)</label>
+            <input id="provieneImport" class="form-control form-control-sm" type="text" placeholder="Ej: nom. de la empresa" oninput="previewImportarClientes()">
+          </div>
+        </div>
 
         <button class="btn btn-outline-secondary btn-sm mb-2" type="button" onclick="pegarDesdeExcel()">Pegar desde Excel</button>
         <textarea id="textoImportar" class="form-control" rows="8" placeholder="Pega aqui las filas copiadas de Excel. Ejem (con tabulador):${String.fromCharCode(10)}Jhon Doe	102029192	3112259328${String.fromCharCode(10)}Maria Gomez	1098765432	3210000000" oninput="previewImportarClientes()"></textarea>
@@ -2653,6 +2688,8 @@ function parsearClientesImportar() {
   let colCiudad = Number(document.querySelector('#colCiudad').value);
   let colDireccion = Number(document.querySelector('#colDireccion').value);
   let tipo = document.querySelector('#tipoDocImport').value;
+  let categoria = document.querySelector('#categoriaImport').value.trim();
+  let proviene = document.querySelector('#provieneImport').value.trim();
 
   let celda = (arr, col) => (col > 0 && arr[col - 1] != null) ? String(arr[col - 1]).trim() : "";
 
@@ -2666,7 +2703,9 @@ function parsearClientesImportar() {
       correo: celda(celdas, colCorreo),
       city: celda(celdas, colCiudad),
       direccion: celda(celdas, colDireccion),
-      type: tipo
+      type: tipo,
+      categoria: categoria,
+      proviene: proviene
     };
   });
 }
@@ -2686,8 +2725,10 @@ function previewImportarClientes() {
   }
 
   let validos = clientes.filter(c => c.name);
+  let notaCategoria = clientes[0].categoria ? ` · <b>Categoría:</b> ${escapeHtmlImportar(clientes[0].categoria)}` : "";
+  let notaProviene = clientes[0].proviene ? ` · <b>Proviene de:</b> ${escapeHtmlImportar(clientes[0].proviene)}` : "";
   cont.innerHTML = `
-    <b>Se detectaron ${clientes.length} fila(s)${clientes.length !== validos.length ? ` (${validos.length} con nombre)` : ""}.</b>
+    <b>Se detectaron ${clientes.length} fila(s)${clientes.length !== validos.length ? ` (${validos.length} con nombre)` : ""}.${notaCategoria}${notaProviene}</b>
     <table class="table table-sm table-striped mt-1">
       <thead><tr><th>#</th><th>Nombre</th><th>Doc.</th><th>Tel.</th><th>Correo</th></tr></thead>
       <tbody>
@@ -2747,6 +2788,8 @@ router.get('/clientes', () => {
               <th>Nombre</th>
               <th>Documento</th>
               <th>Telefono</th>
+              <th>Categoria</th>
+              <th>Proviene de</th>
               <th>Eliminar</th>
             </tr>
           </thead>
