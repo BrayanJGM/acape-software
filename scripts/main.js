@@ -895,21 +895,79 @@ document.addEventListener('keydown', (event) => {
   if (!atajos) return;
 
   if (document.querySelector('.overlay.active')) return;
-  let target = event.target;
-  if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-
   if (event.ctrlKey || event.altKey || event.metaKey) return;
-  if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab'].includes(event.key)) return;
-  if (event.key == 'Enter' || event.key == 'Escape') return;
+  if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(event.key)) return;
+  if (event.key == 'Escape') return;
+
+  let input = document.querySelector('.reseting-listing');
+  let focoEnBuscador = !!input && document.activeElement === input;
+
+  if (event.key == 'Enter') {
+    if (!focoEnBuscador) return;
+    event.preventDefault();
+    let valor = (input.value || '').trim();
+    if (valor) {
+      buscarRapido(valor);
+    } else if (!_atajoPesando) {
+      facturacion();
+    }
+    return;
+  }
 
   let tecla = normalizarTecla(event.key);
   if (!tecla) return;
 
-  let product = converterArray(JSON.parse(sessionStorage.getItem('products') || "{}")).find(ch => normalizarTecla(ch.tecla) == tecla);
+  let esOtroInput = event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName) && !focoEnBuscador;
+  if (esOtroInput) return;
+  if (focoEnBuscador && (input.value || '').trim() !== '') return;
+
+  let product = productoPorTecla(tecla);
   if (!product) return;
 
   event.preventDefault();
   agregarPorTecla(product.id, tecla);
+});
+
+function obtenerProductosCache() {
+  return converterArray(JSON.parse(sessionStorage.getItem('products') || "{}"));
+}
+
+function productoPorTecla(tecla) {
+  let tk = normalizarTecla(tecla);
+  if (!tk) return null;
+  return obtenerProductosCache().find(ch => normalizarTecla(ch.tecla) == tk) || null;
+}
+
+function primerResultadoBusqueda(texto) {
+  let valor = String(texto || '').trim().toLowerCase();
+  if (!valor) return null;
+  return obtenerProductosCache().find(ch => ch.name.toLowerCase().includes(valor) || String(ch.id).includes(valor)) || null;
+}
+
+function buscarRapido(texto) {
+  let primer = primerResultadoBusqueda(texto);
+  let cont = document.querySelector('.searching');
+  let input = document.querySelector('.reseting-listing');
+  if (input) input.value = '';
+  if (cont) cont.innerHTML = '';
+  if (!primer) return;
+  agregarPorTecla(primer.id);
+}
+
+function enfocarBuscador() {
+  if (document.querySelector('.overlay.active')) return;
+  let input = document.querySelector('.reseting-listing');
+  if (input) input.focus();
+}
+
+document.addEventListener('mouseup', (event) => {
+  let atajos = document.querySelector('.atajos-productos');
+  if (!atajos) return;
+  if (document.querySelector('.overlay.active')) return;
+  let t = event.target;
+  if (t && ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return;
+  let input = document.querySelector('.reseting-listing');
+  if (input) input.focus();
 });
 
 // ESTADO DE LA GRAMERA EN LA PANTALLA DE FACTURACIÓN
@@ -1082,6 +1140,7 @@ function limpiarListadoVenta() {
   sessionStorage.removeItem('actually-list-products');
   listingProducts();
   renderAtajos();
+  enfocarBuscador();
   let buscando = document.querySelector('.searching');
   if (buscando) buscando.innerHTML = '';
   let inputBusqueda = document.querySelector('.reseting-listing');
@@ -1489,6 +1548,7 @@ router.get(['/', '', '/app'], () => {
       sessionStorage.setItem('methods', JSON.stringify(data.methods))
       listingProducts()
       renderAtajos()
+      enfocarBuscador()
     })
 
     return `<div class="container"><br><br>
