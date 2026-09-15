@@ -3142,7 +3142,24 @@ function imprimirHTML(html) {
     <style>
       @page { size: 80mm auto; margin: 0; }
       html, body { margin: 0; padding: 0; background: #fff; }
-      .factura-termica { width: 72mm; margin: 0 auto; font-family: 'Courier New', Courier, monospace; font-size: 10pt; font-weight: bold; line-height: 1.25; padding: 2mm; }
+      .factura-termica { width: 72mm; margin: 0 auto; font-family: 'Courier New', Courier, monospace; font-size: 13pt; font-weight: bold; line-height: 1.25; padding: 2mm; }
+      .ft-head { text-align: center; margin-bottom: 2px; }
+      .ft-emp { font-size: 15pt; font-weight: bold; text-transform: uppercase; }
+      .ft-slogan { font-size: 11pt; }
+      .ft-line { display: flex; justify-content: space-between; font-size: 12pt; padding: 1px 0; }
+      .ft-strong span { font-weight: bold; }
+      .ft-divider { border-top: 1px dashed #000; margin-top: 4px; padding-top: 4px; font-size: 12pt; }
+      .ft-headrow { display: flex; justify-content: space-between; border-top: 1px solid #000; border-bottom: 1px solid #000; font-weight: bold; font-size: 12pt; padding: 2px 0; margin-top: 3px; }
+      .ft-item { border-bottom: 1px dashed rgba(0, 0, 0, 0.2); padding: 3px 0; }
+      .ft-item-row { display: flex; justify-content: space-between; align-items: baseline; }
+      .ft-col-desc { flex: 1 1 auto; text-align: left; padding-right: 6px; white-space: normal; }
+      .ft-col-val { white-space: nowrap; text-align: right; }
+      .ft-sub { font-size: 10pt; color: rgba(0, 0, 0, 0.6); margin-top: 1px; }
+      .ft-tot { display: flex; justify-content: space-between; font-size: 12pt; padding: 1px 0; }
+      .ft-val { text-align: right; white-space: nowrap; }
+      .ft-separador { border-top: 1px dashed #000; margin: 5px 0 3px; }
+      .ft-footer { text-align: center; font-size: 11pt; margin-top: 2px; }
+      .ft-disclaimer { text-align: center; font-size: 10pt; color: rgba(0, 0, 0, 0.55); margin-top: 4px; }
       table, th, td { border: none !important; }
     </style>
     <div class="factura-termica">

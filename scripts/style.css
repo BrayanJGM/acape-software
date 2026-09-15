@@ -682,7 +682,7 @@ a {
 }
 .factura-termica {
 	font-family: 'Courier New', Courier, monospace;
-	font-size: 10pt;
+	font-size: 13pt;
 	width: 100%;
 	padding: 5px;
 	font-weight: bold;
@@ -694,17 +694,17 @@ a {
 	margin-bottom: 2px;
 }
 .ft-emp {
-	font-size: 11pt;
+	font-size: 15pt;
 	font-weight: bold;
 	text-transform: uppercase;
 }
 .ft-slogan {
-	font-size: 9pt;
+	font-size: 11pt;
 }
 .ft-line {
 	display: flex;
 	justify-content: space-between;
-	font-size: 9pt;
+	font-size: 12pt;
 	padding: 1px 0;
 }
 .ft-strong span {
@@ -714,7 +714,7 @@ a {
 	border-top: 1px dashed #000;
 	margin-top: 4px;
 	padding-top: 4px;
-	font-size: 9pt;
+	font-size: 12pt;
 }
 .ft-headrow {
 	display: flex;
@@ -722,7 +722,7 @@ a {
 	border-top: 1px solid #000;
 	border-bottom: 1px solid #000;
 	font-weight: bold;
-	font-size: 9pt;
+	font-size: 12pt;
 	padding: 2px 0;
 	margin-top: 3px;
 }
@@ -746,14 +746,14 @@ a {
 	text-align: right;
 }
 .ft-sub {
-	font-size: 7.5pt;
+	font-size: 10pt;
 	color: rgba(0, 0, 0, 0.6);
 	margin-top: 1px;
 }
 .ft-tot {
 	display: flex;
 	justify-content: space-between;
-	font-size: 9pt;
+	font-size: 12pt;
 	padding: 1px 0;
 }
 .ft-val {
@@ -766,12 +766,12 @@ a {
 }
 .ft-footer {
 	text-align: center;
-	font-size: 8pt;
+	font-size: 11pt;
 	margin-top: 2px;
 }
 .ft-disclaimer {
 	text-align: center;
-	font-size: 7pt;
+	font-size: 10pt;
 	color: rgba(0, 0, 0, 0.55);
 	margin-top: 4px;
 }
