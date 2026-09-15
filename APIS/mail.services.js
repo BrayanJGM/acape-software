@@ -15,6 +15,26 @@ function mailConfig() {
   }
 }
 
+function saveMailConfig(mail) {
+  const configs = JSON.parse(fs.readFileSync(configsPath, 'utf8'));
+  if (!configs.tunnel) configs.tunnel = {};
+  configs.tunnel.mail = {
+    host: mail.host || 'smtp.gmail.com',
+    port: mail.port != null ? Number(mail.port) : 465,
+    secure: mail.secure != null ? mail.secure : true,
+    user: String(mail.user || '').trim(),
+    pass: String(mail.pass || ''),
+    to: String(mail.to || '').trim()
+  };
+  fs.writeFileSync(configsPath, JSON.stringify(configs, null, '\t'));
+  return configs.tunnel.mail;
+}
+
+function mailConfigPublic() {
+  const m = mailConfig();
+  return m ? { user: m.user || '', to: m.to || '' } : { user: '', to: '' };
+}
+
 async function sendEmail({ subject, text }) {
   const mail = mailConfig();
   if (!mail || !mail.user || !mail.pass || !mail.to) {
@@ -44,5 +64,8 @@ async function sendEmail({ subject, text }) {
   }
   return true;
 }
+
+sendEmail.saveConfig = saveMailConfig;
+sendEmail.getConfig = mailConfigPublic;
 
 module.exports = sendEmail;

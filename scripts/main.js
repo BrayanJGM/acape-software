@@ -4224,10 +4224,68 @@ function updateConfigs() {
         <h3>Roles</h3>
         <p>Los roles sirven para que tus otros usuarios tengan permisos espesificos y pueda acceder a las funciones de forma limitada.</p>
         <button class="btn btn-outline-primary btn-block w-100 d-block" onclick="createNewRole()"><i class="fa-solid fa-address-book"></i> Crear nuevo rol</button>
+        <hr>
+        <h3>Correo de aviso (acceso remoto)</h3>
+        <p>Configura un Gmail para recibir en tu correo el enlace de acceso remoto cada vez que enciendas el servidor. Usa una <b>contraseña de aplicación</b> de Gmail (16 caracteres) — se crea 1 sola vez en tu cuenta de Google.</p>
+        <form id="formGmail" class="form-gmail" onsubmit="return connectGmailForm(this, false)">
+          <label>Correo de Gmail (emisor)</label>
+          <input id="mailInputUser" type="text" class="form-control" placeholder="tucorreo@gmail.com">
+          <label>Contraseña de aplicación</label>
+          <input id="mailInputPass" type="password" class="form-control" placeholder="Los 16 caracteres que te dio Gmail">
+          <label>Correo que recibe el aviso</label>
+          <input id="mailInputTo" type="text" class="form-control" placeholder="tucorreo@gmail.com">
+          <br>
+          <button class="btn btn-outline-primary d-block w-100">Guardar correo</button>
+          <button class="btn btn-outline-success d-block w-100 mt-1" type="button" onclick="connectGmailForm(document.getElementById('formGmail'), true)">Guardar y enviar correo de prueba</button>
+        </form>
       </div>
       <div class="roles-container">${final_roles}</div>
     `;
+    loadGmailConfig();
   })
+}
+
+function connectGmailForm(form, test) {
+  let token = sessionStorage.getItem('acape-session');
+  let mail = {
+    user: document.getElementById('mailInputUser').value.trim(),
+    pass: document.getElementById('mailInputPass').value,
+    to: document.getElementById('mailInputTo').value.trim()
+  };
+
+  if (!mail.user || !mail.pass || !mail.to) {
+    return alert.fire({
+      title: "Faltan datos",
+      text: "Llena los 3 campos del correo.",
+      icon: "warning"
+    });
+  }
+
+  let url = test ? '/config/mail/test' : '/config/mail';
+  axios.post(url, { token: token, mail: mail }).then((res) => {
+    let r = res.data || {};
+    let ok = !/no se pudo|error/i.test(r.message || '');
+    Toast.fire({
+      title: "Correo",
+      text: r.message || "Configuración guardada",
+      icon: ok ? "success" : "error"
+    });
+  }).catch(() => {
+    Toast.fire({
+      title: "Correo",
+      text: "No se pudo conectar el correo. Revisa la contraseña de aplicación.",
+      icon: "error"
+    });
+  });
+  return false;
+}
+
+function loadGmailConfig() {
+  axios.get('/config/mail').then((res) => {
+    let d = res.data || {};
+    if (document.getElementById('mailInputUser')) document.getElementById('mailInputUser').value = d.user || '';
+    if (document.getElementById('mailInputTo')) document.getElementById('mailInputTo').value = d.to || '';
+  }).catch(() => {});
 }
 
 router.get('/config', () => {

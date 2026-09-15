@@ -22,6 +22,8 @@ const router = new express.Router();
 
 const whatsapp = require('./APIS/whatsapp.services.js');
 
+const apis_mail = require('./APIS/mail.services.js');
+
 
 
 // ESTAS CONFIGURACIONES, ES PARA USAR EN CASO DE QUE NO SE PUEDA ATRAVÉZ DEL METODO DE INYECCION DE CODIGO EN LA IMPRESORA, ENTONCES ESTO AYUDARA A IMPRIMIR Y QUE LA CAJA ABRA.
@@ -1551,6 +1553,53 @@ router.post('/app/contabilidad/ventas/diarias', (req, res) => {
 
 
 
+
+// ---------------------------------------------------------------------------------
+// CORREO DE AVISO (GMAIL) - configurado desde la interfaz de la app
+// ---------------------------------------------------------------------------------
+
+router.get('/config/mail', (req, res) => {
+  try {
+    res.json(apis_mail.getConfig());
+  } catch (err) {
+    res.json({ user: '', to: '' });
+  }
+});
+
+router.post('/config/mail', (req, res) => {
+  const data = req.body || {};
+  let receivedUser = database.getUserToken(data.token);
+  if (!receivedUser.data) return res.send({ message: "La sesion de usuario ya no es valida" });
+  let validatePerms = database.validatePerms(receivedUser.data.token, 'all');
+  if (!validatePerms) return res.send({ message: "No tienes permisos suficientes para configurar el correo" });
+  try {
+    const mail = apis_mail.saveConfig(data.mail || {});
+    res.json({ message: "Correo de aviso guardado", data: { user: mail.user, to: mail.to } });
+  } catch (err) {
+    res.status(500).json({ message: "Error guardando la configuracion: " + err.message });
+  }
+});
+
+router.post('/config/mail/test', async (req, res) => {
+  const data = req.body || {};
+  let receivedUser = database.getUserToken(data.token);
+  if (!receivedUser.data) return res.send({ message: "La sesion de usuario ya no es valida" });
+  let validatePerms = database.validatePerms(receivedUser.data.token, 'all');
+  if (!validatePerms) return res.send({ message: "No tienes permisos suficientes para configurar el correo" });
+  try {
+    if (data.mail && data.mail.user && data.mail.pass && data.mail.to) apis_mail.saveConfig(data.mail);
+    const ok = await apis_mail({
+      subject: "Correo de prueba - Servidor ACAPE",
+      text: "Hola,\n\nTu correo quedo conectado correctamente y recibiras ahi el enlace de acceso remoto cada vez que enciendas el servidor.\n\n- Servidor ACAPE"
+    });
+    res.json(ok
+      ? { message: "Correo de prueba enviado correctamente" }
+      : { message: "No se pudo enviar el correo de prueba. Revisa que la contraseña de aplicacion sea correcta." }
+    );
+  } catch (err) {
+    res.status(500).json({ message: "Error al enviar: " + err.message });
+  }
+});
 
 router.use((req, res) => {
   res.status(404).render('another/not-configured.html');

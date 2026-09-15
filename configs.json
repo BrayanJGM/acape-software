@@ -19,9 +19,9 @@
 			"host": "smtp.gmail.com",
 			"port": 465,
 			"secure": true,
-			"user": "TU.GMAIL@gmail.com",
-			"pass": "TU-CONTRASEÑA-DE-APP",
-			"to": "TU.GMAIL@gmail.com"
+			"user": "",
+			"pass": "",
+			"to": ""
 		}
 	}
 }
