@@ -1030,17 +1030,104 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
   return false;
 }
 
-function cargarClientesParaVenta(respuesta) {
+function getClientesVenta(respuesta) {
   let token = sessionStorage.getItem('acape-session');
   socket.emit('getAllClients', { token: token });
   socket.once('getAllClients', (data) => {
-    let opciones = '<option value="">Consumidor Final</option>';
-    if (data && data.data) {
-      let arr = converterArray(data.data).sort((a, b) => String(a.name).localeCompare(String(b.name)));
-      opciones += arr.map(ch => `<option value="${ch.id}">${ch.name}${ch.document ? ' - ' + ch.document : ''}</option>`).join('');
-    }
-    respuesta(opciones);
+    if (!data || !data.data) return respuesta([]);
+    let arr = converterArray(data.data).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    respuesta(arr);
   });
+}
+
+function normalizarTexto(texto) {
+  return String(texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function activarBuscadorCliente(clientes, opts = {}) {
+  let input = document.querySelector('#buscarCliente');
+  let hiddenInput = document.querySelector('#clienteId');
+  let resultados = document.querySelector('#resultadosCliente');
+  let quitar = document.querySelector('#quitarCliente');
+  if (!input || !hiddenInput || !resultados) return;
+
+  let lista = converterArray(clientes || []);
+  let seleccionado = null;
+
+  if (window._buscadorDocHandler) document.removeEventListener('click', window._buscadorDocHandler);
+
+  function dibujar(consulta) {
+    let q = normalizarTexto(consulta);
+    let filtrados = q
+      ? lista.filter(c => normalizarTexto(c.name).includes(q) || normalizarTexto(c.document).includes(q)).slice(0, 8)
+      : [];
+    if (!filtrados.length) {
+      resultados.innerHTML = q ? '<div class="buscador-cliente-resultado sin-coincidencias">Sin coincidencias</div>' : '';
+      resultados.hidden = !q;
+      return;
+    }
+    resultados.innerHTML = filtrados.map(c => `
+      <div class="buscador-cliente-resultado" data-id="${c.id}">
+        <span class="buscador-cliente-nombre">${c.name}</span>
+        <span class="small">${c.document ? c.document : ''}</span>
+        <span class="small text-muted">${c.phone ? 'Tel: ' + c.phone : ''}</span>
+      </div>
+    `).join('');
+    resultados.hidden = false;
+  }
+
+  function seleccionar(c) {
+    seleccionado = c;
+    input.value = c.name || '';
+    hiddenInput.value = String(c.id);
+    resultados.hidden = true;
+    if (quitar) quitar.hidden = false;
+    if (opts.onSelect) opts.onSelect(c);
+  }
+
+  function limpiarSeleccion() {
+    seleccionado = null;
+    input.value = '';
+    hiddenInput.value = '';
+    resultados.hidden = true;
+    resultados.innerHTML = '';
+    if (quitar) quitar.hidden = true;
+    if (opts.onSelect) opts.onSelect(null);
+  }
+
+  input.addEventListener('input', () => {
+    if (seleccionado && input.value !== (seleccionado.name || '')) {
+      seleccionado = null;
+      hiddenInput.value = '';
+      if (quitar) quitar.hidden = true;
+    }
+    dibujar(input.value);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      let primero = resultados.querySelector('.buscador-cliente-resultado');
+      if (primero && !primero.classList.contains('sin-coincidencias')) {
+        e.preventDefault();
+        seleccionar(lista.find(c => String(c.id) === primero.dataset.id));
+      }
+    } else if (e.key === 'Escape') {
+      resultados.hidden = true;
+    }
+  });
+
+  resultados.addEventListener('click', (e) => {
+    let fila = e.target.closest('.buscador-cliente-resultado');
+    if (!fila || fila.classList.contains('sin-coincidencias')) return;
+    seleccionar(lista.find(c => String(c.id) === fila.dataset.id));
+  });
+
+  window._buscadorDocHandler = (e) => {
+    if (resultados && !e.target.closest('.buscador-cliente')) resultados.hidden = true;
+  };
+  document.addEventListener('click', window._buscadorDocHandler);
+
+  if (quitar) quitar.addEventListener('click', limpiarSeleccion);
 }
 
 function facturacion() {
@@ -1063,7 +1150,7 @@ function facturacion() {
   let methods = sessionStorage.getItem('methods') ? JSON.parse(sessionStorage.getItem('methods')) : {};
   let array_methods = converterArray(methods);
 
-  cargarClientesParaVenta((opcionesClientes) => {
+  getClientesVenta((clientesVenta) => {
     popup.open({
       title: "Venta Normal",
       content: `
@@ -1075,10 +1162,13 @@ function facturacion() {
         </select>
         <label>Total Recibido</label>
         <input type="text" class="form-control numberify-input-commas" value="${formatNumber(finalPrice)}">
-        <label>Cliente (opcional)</label>
-        <select class="form-select">
-          ${opcionesClientes}
-        </select>
+        <div class="buscador-cliente">
+          <input type="hidden" id="clienteId" value="">
+          <label>Cliente (opcional)</label>
+          <input type="text" id="buscarCliente" class="form-control" autocomplete="off" placeholder="Buscar por nombre o número de identidad">
+          <div id="resultadosCliente" class="buscador-cliente-resultados" hidden></div>
+          <button type="button" id="quitarCliente" class="btn btn-light btn-sm mt-1" hidden><i class="fa-solid fa-xmark"></i> Quitar cliente</button>
+        </div>
         <div class="actual-venta">
           ${finalProducts}
           <hr>
@@ -1090,6 +1180,7 @@ function facturacion() {
       </form>
     `
     });
+    activarBuscadorCliente(clientesVenta);
   });
 }
 
@@ -1113,7 +1204,7 @@ function facturacionMayor() {
   let methods = sessionStorage.getItem('methods') ? JSON.parse(sessionStorage.getItem('methods')) : {};
   let array_methods = converterArray(methods);
 
-  cargarClientesParaVenta((opcionesClientes) => {
+  getClientesVenta((clientesVenta) => {
     popup.open({
       title: "Venta Por Mayor",
       content: `
@@ -1125,10 +1216,13 @@ function facturacionMayor() {
         </select>
         <label>Total Recibido</label>
         <input type="text" class="form-control numberify-input-commas" value="${formatNumber(finalPrice)}">
-        <label>Cliente (opcional)</label>
-        <select class="form-select">
-          ${opcionesClientes}
-        </select>
+        <div class="buscador-cliente">
+          <input type="hidden" id="clienteId" value="">
+          <label>Cliente (opcional)</label>
+          <input type="text" id="buscarCliente" class="form-control" autocomplete="off" placeholder="Buscar por nombre o número de identidad">
+          <div id="resultadosCliente" class="buscador-cliente-resultados" hidden></div>
+          <button type="button" id="quitarCliente" class="btn btn-light btn-sm mt-1" hidden><i class="fa-solid fa-xmark"></i> Quitar cliente</button>
+        </div>
         <div class="actual-venta">
           ${finalProducts}
           <hr>
@@ -1140,6 +1234,7 @@ function facturacionMayor() {
       </form>
     `
     });
+    activarBuscadorCliente(clientesVenta);
   });
 }
 
@@ -3037,6 +3132,7 @@ function sendCreatePedido(e, productsSetter) {
     hora: e[3].value,
     detalles: e[4].value,
     abono: removeCommaSeparators(e[5].value),
+    clienteId: document.querySelector('#clienteId') ? document.querySelector('#clienteId').value : null,
     mayor: e[6].value == "true" ? "true" : null
   }
   let token = sessionStorage.getItem('acape-session');
@@ -3085,12 +3181,17 @@ function openCreatePedido(mayor) {
     }
   }).join('')
 
+  getClientesVenta((clientesPedido) => {
   popup.open({
     title: "Crear Pedido",
     content: `
       <form class="super-form-create-pedido" onsubmit="return sendCreatePedido(this)">
-        <label>Nombre del cliente</label>
-        <input type="text" required class="form-control" placeholder="Cliente">
+        <div class="buscador-cliente">
+          <label>Cliente (buscar por nombre o número de identidad)</label>
+          <input type="text" id="buscarCliente" class="form-control" required autocomplete="off" placeholder="Buscar por nombre o número de identidad">
+          <div id="resultadosCliente" class="buscador-cliente-resultados" hidden></div>
+          <button type="button" id="quitarCliente" class="btn btn-light btn-sm mt-1" hidden><i class="fa-solid fa-xmark"></i> Quitar cliente</button>
+        </div>
         <label htmlFor="">Numero de telefono del cliente</label>
         <input type="text" placeholder="Numero de telefono" class="form-control" required>
         <label>Dia de entrega</label>
@@ -3109,11 +3210,22 @@ function openCreatePedido(mayor) {
         <label>Abono</label>
         <input class="form-control numberify-input-commas" placeholder="$ 10,000" type="text">
         <input type="hidden" value="${mayor?'true':"false"}">
+        <input type="hidden" id="clienteId" value="">
         <br><br>
         <button class="btn btn-outline-primary">Generar Pedido</button>
         <a class="btn btn-outline-info" onclick="${mayor?"openCreatePedido()":"openCreatePedido(true)"}">Cambiar A ${mayor?"Normal":"Por Mayor"}</a>
       </form>
     `
+    });
+    activarBuscadorCliente(clientesPedido, {
+      onSelect: (cliente) => {
+        let formularioPedido = document.querySelector('.super-form-create-pedido');
+        if (formularioPedido) {
+          let telefono = formularioPedido.elements[1];
+          if (telefono) telefono.value = cliente ? cliente.phone : '';
+        }
+      }
+    });
   })
 }
 

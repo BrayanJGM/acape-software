@@ -460,6 +460,49 @@ form p {
 .cursor-pointer {
 	cursor: pointer;
 }
+
+/* BUSCADOR DE CLIENTE (ventas y pedidos) */
+.buscador-cliente {
+	position: relative;
+}
+.buscador-cliente-resultados {
+	position: absolute;
+	top: calc(100% + 2px);
+	left: 0;
+	right: 0;
+	background: #fff;
+	border: 1px solid rgba(0, 0, 0, 0.15);
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+	max-height: 180px;
+	overflow-y: auto;
+	z-index: 3100;
+}
+.buscador-cliente-resultado {
+	padding: 8px 12px;
+	border-bottom: 1px solid #f0f0f0;
+	cursor: pointer;
+	display: -webkit-flex;
+	display: -moz-flex;
+	display: -ms-flex;
+	display: -o-flex;
+	display: flex;
+	flex-direction: column;
+}
+.buscador-cliente-resultado:last-child {
+	border-bottom: none;
+}
+.buscador-cliente-resultado:hover {
+	background: #f0f5ff;
+}
+.buscador-cliente-resultado .buscador-cliente-nombre {
+	font-weight: 600;
+}
+.buscador-cliente-resultado.sin-coincidencias {
+	cursor: default;
+	color: #999;
+	font-style: italic;
+}
 .non-padding {
 	padding: 0px !important;
 }
