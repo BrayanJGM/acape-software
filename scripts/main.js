@@ -2498,6 +2498,209 @@ function createClient() {
   }))
 }
 
+function importarClientes() {
+  popup.open({
+    title: "Importar Clientes (Excel)",
+    content: `
+      <div class="importar-clientes">
+        <p class="small text-muted">Copia las filas en Excel y pégalas aquí. El programa detecta el separador (tabulador, coma o punto y coma) automáticamente.</p>
+
+        <label class="small">Tipo de documento (se aplica a todos)</label>
+        <select id="tipoDocImport" class="form-select w-auto mb-2" onchange="previewImportarClientes()">
+          <option value="cc" selected>C.C</option>
+          <option value="ti">T.I</option>
+          <option value="ex">Ext</option>
+        </select>
+
+        <button class="btn btn-outline-secondary btn-sm mb-2" type="button" onclick="pegarDesdeExcel()">Pegar desde Excel</button>
+        <textarea id="textoImportar" class="form-control" rows="8" placeholder="Pega aqui las filas copiadas de Excel. Ejem (con tabulador):${String.fromCharCode(10)}Jhon Doe	102029192	3112259328${String.fromCharCode(10)}Maria Gomez	1098765432	3210000000" oninput="previewImportarClientes()"></textarea>
+
+        <div class="row mt-3">
+          <div class="col-4">
+            <label class="small">Columna Nombre</label>
+            <select id="colNombre" class="form-select form-select-sm" onchange="previewImportarClientes()">
+              <option value="0">Ninguna</option>
+              <option value="1" selected>1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="small">Columna Documento</label>
+            <select id="colDocumento" class="form-select form-select-sm" onchange="previewImportarClientes()">
+              <option value="0">Ninguna</option>
+              <option value="1">1</option>
+              <option value="2" selected>2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="small">Columna Teléfono</label>
+            <select id="colTelefono" class="form-select form-select-sm" onchange="previewImportarClientes()">
+              <option value="0">Ninguna</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3" selected>3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </div>
+        </div>
+        <div class="row mt-2">
+          <div class="col-4">
+            <label class="small">Columna Correo</label>
+            <select id="colCorreo" class="form-select form-select-sm" onchange="previewImportarClientes()">
+              ${[0,1,2,3,4,5,6].map(n => `<option value="${n}">${n || "Ninguna"}</option>`).join('')}
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="small">Columna Ciudad</label>
+            <select id="colCiudad" class="form-select form-select-sm" onchange="previewImportarClientes()">
+              ${[0,1,2,3,4,5,6].map(n => `<option value="${n}">${n || "Ninguna"}</option>`).join('')}
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="small">Columna Dirección</label>
+            <select id="colDireccion" class="form-select form-select-sm" onchange="previewImportarClientes()">
+              ${[0,1,2,3,4,5,6].map(n => `<option value="${n}">${n || "Ninguna"}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div id="vistaPreviaImportar" class="mt-3 small"></div>
+
+        <button class="btn btn-outline-primary d-block w-100 mt-3" onclick="enviarImportacionClientes()">Importar clientes</button>
+      </div>
+    `
+  })
+}
+
+function pegarDesdeExcel() {
+  let area = document.querySelector('#textoImportar');
+  if (!area) return;
+
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    navigator.clipboard.readText().then((texto) => {
+      if (texto) {
+        area.value = texto;
+        previewImportarClientes();
+      }
+    }).catch(() => {
+      Toast.fire({ title: "Pegar desde Excel", text: "Usa Ctrl+V dentro del cuadro.", icon: "info" });
+      area.focus();
+    });
+  } else {
+    area.focus();
+  }
+}
+
+function parsearClientesImportar() {
+  let area = document.querySelector('#textoImportar');
+  if (!area) return [];
+  let texto = area.value;
+  if (!texto.trim()) return [];
+
+  let lineas = texto.split(/\r?\n/).filter(l => l.trim() !== "");
+  if (!lineas.length) return [];
+
+  let contadores = { "\t": 0, ";": 0, ",": 0 };
+  lineas.forEach(l => {
+    contadores["\t"] += (l.match(/\t/g) || []).length;
+    contadores[";"] += (l.match(/;/g) || []).length;
+    contadores[","] += (l.match(/,/g) || []).length;
+  });
+
+  let delim = Object.keys(contadores).sort((a, b) => contadores[b] - contadores[a])[0];
+  if (contadores[delim] === 0) delim = "\t";
+
+  let colNombre = Number(document.querySelector('#colNombre').value);
+  let colDocumento = Number(document.querySelector('#colDocumento').value);
+  let colTelefono = Number(document.querySelector('#colTelefono').value);
+  let colCorreo = Number(document.querySelector('#colCorreo').value);
+  let colCiudad = Number(document.querySelector('#colCiudad').value);
+  let colDireccion = Number(document.querySelector('#colDireccion').value);
+  let tipo = document.querySelector('#tipoDocImport').value;
+
+  let celda = (arr, col) => (col > 0 && arr[col - 1] != null) ? String(arr[col - 1]).trim() : "";
+
+  return lineas.map((linea, idx) => {
+    let celdas = linea.split(delim);
+    return {
+      fila: idx + 1,
+      name: celda(celdas, colNombre),
+      document: celda(celdas, colDocumento),
+      phone: celda(celdas, colTelefono),
+      correo: celda(celdas, colCorreo),
+      city: celda(celdas, colCiudad),
+      direccion: celda(celdas, colDireccion),
+      type: tipo
+    };
+  });
+}
+
+function escapeHtmlImportar(texto) {
+  return String(texto || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function previewImportarClientes() {
+  let cont = document.querySelector('#vistaPreviaImportar');
+  if (!cont) return;
+
+  let clientes = parsearClientesImportar();
+  if (!clientes.length) {
+    cont.innerHTML = '<span class="text-muted">Pega las filas para ver la vista previa.</span>';
+    return;
+  }
+
+  let validos = clientes.filter(c => c.name);
+  cont.innerHTML = `
+    <b>Se detectaron ${clientes.length} fila(s)${clientes.length !== validos.length ? ` (${validos.length} con nombre)` : ""}.</b>
+    <table class="table table-sm table-striped mt-1">
+      <thead><tr><th>#</th><th>Nombre</th><th>Doc.</th><th>Tel.</th><th>Correo</th></tr></thead>
+      <tbody>
+        ${clientes.slice(0, 5).map(c => `<tr><td>${c.fila}</td><td>${escapeHtmlImportar(c.name)}</td><td>${escapeHtmlImportar(c.document)}</td><td>${escapeHtmlImportar(c.phone)}</td><td>${escapeHtmlImportar(c.correo)}</td></tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function enviarImportacionClientes() {
+  let clientes = parsearClientesImportar();
+  let validos = clientes.filter(c => c.name);
+  if (!validos.length) return Toast.fire({ title: "Importar clientes", text: "No hay filas con nombre para importar.", icon: "warning" });
+
+  let token = sessionStorage.getItem('acape-session');
+  socket.emit('createClientsBulk', { clientes: validos, token: token });
+  socket.once('createClientsBulk', (data) => {
+    if (!data.data) return Toast.fire({ title: "Importar clientes", text: data.message || "No se pudo importar.", icon: "error" });
+
+    popup.close();
+    reloadClientes();
+
+    let resumen = data.data;
+    if (resumen.omitidos && resumen.omitidos.length) {
+      let detalles = resumen.omitidos.map(o => `${o.fila}. ${o.name || "(sin nombre)"} — ${o.razon}`).join('<br>');
+      popup.open({
+        title: `Importados ${resumen.creados.length} de ${resumen.total}`,
+        content: `
+          <p class="small text-muted">Plantillas omitidas:</p>
+          <div class="small">${detalles}</div>
+          <br>
+          <button class="btn btn-outline-info d-block w-100" onclick="popup.close()">Aceptar</button>
+        `
+      });
+    } else {
+      Toast.fire({ title: "Importación completada", text: `Se importaron ${resumen.creados.length} cliente(s).`, icon: "success" });
+    }
+  });
+}
+
 router.get('/clientes', () => {
   sessionValidator();
   reloadClientes();
@@ -2507,6 +2710,7 @@ router.get('/clientes', () => {
       <p class="text-center">La zona de clientes tiene un accesso restringido.</p>
       <div class="text-center">
         <button class="btn btn-outline-primary" onclick="createClient()">Nuevo Cliente</button>
+        <button class="btn btn-outline-primary" onclick="importarClientes()">Importar Clientes</button>
       </div>
       <br>
       <div class="clients-table">

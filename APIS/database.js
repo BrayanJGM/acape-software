@@ -1611,6 +1611,70 @@ final_venta.vueltas = final_venta.recibido - final_venta.total_pago;
 		return {message: "Cliente guardado satisfactoriamente", data: final_client};
 	}
 
+	createClientsBulk(clientes = [], token){
+		if(!clientes || !clientes.length) return {message: "Agrega la lista de clientes a importar."};
+
+		let validateUser = this.validatePerms(token, 'clientManager');
+		if(!validateUser) return {message: "No tiene permisos suficientes."};
+
+		let clients = this.db.getData('/data/simple/clientes');
+		let ids = this.db.getData('/data/simple/id');
+
+		let existingNames = new Set();
+		let existingDocs = new Set();
+		converterArray(clients).forEach(ch => {
+			if(ch && ch.name) existingNames.add(String(ch.name).trim().toLowerCase());
+			if(ch && ch.document) existingDocs.add(String(ch.document).trim());
+		});
+
+		let creados = [];
+		let omitidos = [];
+
+		clientes.forEach((item, index) => {
+			let fila = index + 1;
+			let name = item.name != null ? String(item.name).trim() : "";
+			if(!name) return omitidos.push({ fila, name, razon: "Sin nombre" });
+
+			let document = item.document != null ? String(item.document).trim() : "";
+			document = document.replace(/[.\-, ]/g, "");
+
+			if(existingNames.has(name.toLowerCase())) return omitidos.push({ fila, name, razon: "Nombre ya existente" });
+			if(document && existingDocs.has(document)) return omitidos.push({ fila, name, razon: "Documento ya existente" });
+
+			existingNames.add(name.toLowerCase());
+			if(document) existingDocs.add(document);
+
+			ids.clientes = (ids.clientes || 0) + 1;
+
+			let final_client = {
+				name: name,
+				type: item.type || "cc",
+				document: document,
+				phone: item.phone != null ? String(item.phone).trim() : "",
+				correo: item.correo != null ? String(item.correo).trim() : "",
+				date: new Date() - 0,
+				city: item.city != null ? String(item.city).trim() : "",
+				direccion: item.direccion != null ? String(item.direccion).trim() : "",
+				compras: [],
+				id: ids.clientes
+			};
+			clients[ids.clientes] = final_client;
+			creados.push(final_client.id);
+		});
+
+		this.db.setData('/data/simple/id', ids);
+		this.db.setData('/data/simple/clientes', clients);
+
+		return {
+			message: `${creados.length} cliente(s) importado(s) satisfactoriamente.`,
+			data: {
+				creados,
+				omitidos,
+				total: clientes.length
+			}
+		};
+	}
+
 	editClient(data, token){
 		if(!data) return {message: "Agrega la información del cliente"};
 

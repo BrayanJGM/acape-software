@@ -1282,6 +1282,14 @@ router.post('/createClient', (req, res) => {
 
   return res.json(database.createClient(data.client, data.token));
 })
+router.post('/createClientsBulk', (req, res) => {
+  const data = req.body;
+
+  if (!data.clientes) return res.json({ message: "Agrega la lista de clientes a importar." });
+  if (!data.token) return res.json({ message: "Agrega el token para acceder a la información" });
+
+  return res.json(database.createClientsBulk(data.clientes, data.token));
+})
 router.post('/editClient', (req, res) => {
   const data = req.body;
 
