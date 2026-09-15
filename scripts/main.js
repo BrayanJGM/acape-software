@@ -1297,10 +1297,13 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
 
 popup.open({
     title: "Venta hecha",
-    content: `Total a pagar: ${formatNumber(finalPrice)} <br> Total Recibido: ${formatNumber(data.total_recibido)} <br><br> Vueltos: ${formatNumber(Number(removeCommaSeparators(e[1].value)) - finalPrice)} <br><br> <button class="btn btn-outline-success" onclick="imprimirReciboVenta()">Imprimir recibo</button> <button class="btn btn-outline-info" onclick="popup.close()">Aceptar</button>`
+    content: `Total a pagar: ${formatNumber(finalPrice)} <br> Total Recibido: ${formatNumber(data.total_recibido)} <br><br> Vueltos: ${formatNumber(Number(removeCommaSeparators(e[1].value)) - finalPrice)} <br><br> <button class="btn btn-outline-success" onclick="imprimirReciboVenta()">Imprimir recibo</button> <button id="btnAceptarVentaHecha" class="btn btn-outline-info" onclick="popup.close()">Aceptar</button>`
   });
 
   limpiarListadoVenta();
+
+  let btnAceptar = document.getElementById('btnAceptarVentaHecha');
+  if (btnAceptar) btnAceptar.focus();
 
   return false;
 }
