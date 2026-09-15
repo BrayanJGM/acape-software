@@ -683,6 +683,7 @@ a {
 .factura-termica {
 	font-family: 'Courier New', Courier, monospace;
 	font-size: 13pt;
+	line-height: 1.4;
 	width: 100%;
 	padding: 5px;
 	font-weight: bold;
@@ -723,12 +724,13 @@ a {
 	border-bottom: 1px solid #000;
 	font-weight: bold;
 	font-size: 12pt;
-	padding: 2px 0;
-	margin-top: 3px;
+	padding: 3px 0;
+	margin-top: 4px;
+	margin-bottom: 4px;
 }
 .ft-item {
 	border-bottom: 1px dashed rgba(0, 0, 0, 0.2);
-	padding: 3px 0;
+	padding: 6px 0;
 }
 .ft-item-row {
 	display: flex;
@@ -748,13 +750,16 @@ a {
 .ft-sub {
 	font-size: 10pt;
 	color: #000;
-	margin-top: 1px;
+	margin-top: 3px;
+}
+.ft-espacio {
+	height: 10px;
 }
 .ft-tot {
 	display: flex;
 	justify-content: space-between;
 	font-size: 12pt;
-	padding: 1px 0;
+	padding: 2px 0;
 }
 .ft-val {
 	text-align: right;
@@ -762,7 +767,7 @@ a {
 }
 .ft-separador {
 	border-top: 1px dashed #000;
-	margin: 5px 0 3px;
+	margin: 9px 0 6px;
 }
 .ft-footer {
 	text-align: center;
