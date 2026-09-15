@@ -1468,11 +1468,13 @@ function facturacion() {
         <br>
         <div class="precio-final"><h5>Total a pagar: $ ${formatNumber(finalPrice)}</h5></div>
         <br>
-        <button class="btn btn-block btn-outline-primary focusing" autofocus><i class="fa-solid fa-floppy-disk"></i> Finalizar</button>
+        <button id="btnFinalizarVenta" class="btn btn-block btn-outline-primary focusing" autofocus><i class="fa-solid fa-floppy-disk"></i> Finalizar</button>
       </form>
     `
     });
     activarBuscadorCliente(clientesVenta);
+    let btnFinalizar = document.getElementById('btnFinalizarVenta');
+    if (btnFinalizar) btnFinalizar.focus();
   });
 }
 
@@ -1522,11 +1524,13 @@ function facturacionMayor() {
         <br><br>
         <div class="precio-final"><h5>Total a pagar: $ ${formatNumber(finalPrice)}</h5></div>
 
-        <button class="btn btn-block btn-outline-primary"><i class="fa-solid fa-floppy-disk"></i> Finalizar</button>
+        <button id="btnFinalizarVentaMayor" class="btn btn-block btn-outline-primary"><i class="fa-solid fa-floppy-disk"></i> Finalizar</button>
       </form>
     `
     });
     activarBuscadorCliente(clientesVenta);
+    let btnFinalizarMayor = document.getElementById('btnFinalizarVentaMayor');
+    if (btnFinalizarMayor) btnFinalizarMayor.focus();
   });
 }
 
