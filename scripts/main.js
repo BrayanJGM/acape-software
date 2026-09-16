@@ -608,6 +608,11 @@ function setListProduct(data) {
     icon: "error"
   });
 
+  if (esDePeso(findingProduct)) {
+    abrirPesajePopup(data, 'agregar');
+    return;
+  }
+
   document.querySelector('.reseting-listing').value = '';
   document.querySelector('.searching').innerHTML = '';
 
@@ -766,6 +771,13 @@ let _pesajePopupId = null;
 let _pesajePopupModo = 'agregar';
 let _pesajePopupPeso = null;
 let _pesajePopupProducto = null;
+
+// INDICA SI UN PRODUCTO SE VENDE POR PESO (GRAMERA), acepta "true", true o 1
+function esDePeso(product) {
+  if (!product) return false;
+  let v = product.venta_por_peso;
+  return v === true || v === 1 || v === "true" || String(v).toLowerCase() === "true";
+}
 
 function abrirPesajePopup(id, modo = 'agregar') {
   let products = JSON.parse(sessionStorage.getItem('products') || "{}");
@@ -948,7 +960,7 @@ function renderAtajos() {
 
   cont.innerHTML = atajos.map(ch => {
     let precio = ch.price ? formatNumber(ch.price) : "?";
-    let icono = ch.venta_por_peso == "true" ? '<i class="fa-solid fa-weight-scale" title="Por peso"></i> ' : "";
+    let icono = esDePeso(ch) ? '<i class="fa-solid fa-weight-scale" title="Por peso"></i> ' : "";
     return `
       <button class="atajo" data-tecla="${ch.tecla}" onclick="agregarPorTecla('${ch.id}')" title="${ch.name}">
         <span class="atajo-tecla">${ch.tecla.toUpperCase()}</span>
@@ -970,7 +982,7 @@ function agregarPorTecla(id, tecla) {
     setTimeout(() => tile.classList.remove('atajo-press'), 400);
   }
 
-  if (product.venta_por_peso == "true") {
+  if (esDePeso(product)) {
     abrirPesajePopup(id, 'agregar');
     return;
   }
@@ -1159,7 +1171,7 @@ function listingProducts() {
           <input oninput="return changeCantidad('${ch.id}', this)" type="number" step="0.001" value="${ch.cantidad?ch.cantidad:1}" ${!ch.cantidad?"disabled":""}>
         </td>
         <td class="text-center">
-          ${ch.venta_por_peso == "true" ? `<button class="btn btn-outline-info btn-sm" onclick="pesarProducto('${ch.id}')"><i class="fa-solid fa-weight-scale"></i> Pesar</button>` : ""}
+          ${esDePeso(ch) ? `<button class="btn btn-outline-info btn-sm" onclick="pesarProducto('${ch.id}')"><i class="fa-solid fa-weight-scale"></i> Pesar</button>` : ""}
         </td>
         <td class="change-price-${ch.id}">${formatNumber(ch.cantidad?(ch.price*(ch.cantidad?ch.cantidad:0)):ch.price)}</td>
         <td class="text-center cursor-pointer" onclick="deleteList('${ch.id}')">x</td>
@@ -1823,7 +1835,7 @@ function editProduct(id) {
           </div>
 
           <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" id="editVentaPorPeso" ${info_inputs.venta_por_peso == "true" ? 'checked' : ''}>
+            <input class="form-check-input" type="checkbox" id="editVentaPorPeso" ${esDePeso(info_inputs) ? 'checked' : ''}>
             <label class="form-check-label" for="editVentaPorPeso">
               <i class="fa-solid fa-weight-scale"></i> Venta por peso (precio por kg)
             </label>
