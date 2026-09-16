@@ -3032,7 +3032,7 @@ function renderComprasCliente(info, filtro) {
             <td>${formatDate(c.fecha)}</td>
             <td class="small">${(c.productos || []).map(p => p.nombre + ' x' + p.cantidad).join('<br>')}</td>
             <td>$ ${formatNumber(c.total)}</td>
-            <td><button class="btn btn-outline-secondary btn-sm" onclick="factVenta(${c.ventaId})">Ver</button></td>
+            <td><button class="btn btn-outline-secondary btn-sm" onclick="verCompraCliente(${c.ventaId})">Ver</button></td>
           </tr>
         `).join('')}
       </tbody>
@@ -3040,6 +3040,68 @@ function renderComprasCliente(info, filtro) {
   }
 
   res.innerHTML = `<div class="alert alert-info p-2 small">Total comprado en el período seleccionado: <b>$ ${formatNumber(subtotal)}</b> en ${filtradas.length} venta(s).</div>`;
+}
+
+function compraAVenta(compra, info) {
+  return {
+    id: compra.ventaId,
+    date: compra.fecha,
+    cliente: info.name || "Consumidor Final",
+    total_pago: compra.total,
+    recibido: compra.total,
+    products: (compra.productos || []).map(p => {
+      let cant = Number(p.cantidad) || 1;
+      return {
+        name: p.nombre,
+        cantidad: p.cantidad,
+        price: cant ? (Number(p.total) || 0) / cant : 0,
+        precio_final: p.total
+      };
+    })
+  };
+}
+
+function verCompraCliente(ventaId) {
+  let info = window._comprasClienteActual;
+  if (!info) return Toast.fire({ title: "Compras del cliente", text: "Carga primero las compras del cliente.", icon: "warning" });
+
+  let compra = (info.compras || []).find(c => String(c.ventaId) === String(ventaId));
+  if (!compra) return Toast.fire({ title: "Compras del cliente", text: "Esta compra no aparece en los datos del cliente.", icon: "error" });
+
+  let venta = compraAVenta(compra, info);
+
+  popup.open({
+    title: "Compra del cliente: " + (info.name || ventaId),
+    content: `
+      <div class="facturar pd-1">
+        <div class="factura-termica">
+          ${reciboVentaHTML(venta)}
+        </div>
+        <hr>
+        <button class="btn btn-outline-success" onclick="imprimirCompraCliente(${venta.id})"><i class="fa-solid fa-print"></i> Imprimir</button>
+        <button class="btn btn-outline-info" onclick="verComprasCliente(${info.id})"><i class="fa-solid fa-arrow-left"></i> Volver a compras</button>
+      </div>
+    `
+  });
+}
+
+function imprimirCompraCliente(ventaId) {
+  let info = window._comprasClienteActual;
+  if (!info) return Toast.fire({ title: "Compras del cliente", text: "Carga primero las compras del cliente.", icon: "warning" });
+
+  let compra = (info.compras || []).find(c => String(c.ventaId) === String(ventaId));
+  if (!compra) return Toast.fire({ title: "Compras del cliente", text: "Esta compra no aparece en los datos del cliente.", icon: "error" });
+
+  let venta = compraAVenta(compra, info);
+  window._ventaReciboSnapshot = {
+    venta: venta.products,
+    total_pago: venta.total_pago,
+    recibido: venta.recibido,
+    digital: null,
+    clientId: info.id,
+    date: venta.date
+  };
+  imprimirReciboVenta();
 }
 
 function submitCreateClient(e) {
