@@ -1341,14 +1341,33 @@ function imprimirReciboVenta() {
   });
 }
 
-function getClientesVenta(respuesta) {
+const CLIENTS_LITE_TTL = 120000;
+let _clientesLiteInflight = null;
+
+function cargarClientesLite(respuesta) {
+  try {
+    let cache = JSON.parse(sessionStorage.getItem('clients-lite'));
+    if (cache && Array.isArray(cache.list) && (Date.now() - cache.ts) < CLIENTS_LITE_TTL) {
+      return respuesta(cache.list);
+    }
+  } catch (e) {}
+
+  if (_clientesLiteInflight) return _clientesLiteInflight.push(respuesta);
+  _clientesLiteInflight = [respuesta];
+
   let token = sessionStorage.getItem('acape-session');
-  socket.emit('getAllClients', { token: token });
   socket.once('getAllClients', (data) => {
-    if (!data || !data.data) return respuesta([]);
-    let arr = converterArray(data.data).sort((a, b) => String(a.name).localeCompare(String(b.name)));
-    respuesta(arr);
+    let arr = data && data.data ? converterArray(data.data).sort((a, b) => String(a.name).localeCompare(String(b.name))) : [];
+    sessionStorage.setItem('clients-lite', JSON.stringify({ ts: Date.now(), list: arr }));
+    let callbacks = _clientesLiteInflight || [];
+    _clientesLiteInflight = null;
+    callbacks.forEach(fn => fn && fn(arr));
   });
+  socket.emit('getAllClients', { token: token });
+}
+
+function getClientesVenta(respuesta) {
+  cargarClientesLite(respuesta);
 }
 
 function normalizarTexto(texto) {
@@ -2840,9 +2859,9 @@ function editClient(id, e) {
 
 function editarCliente(id) {
   let token = sessionStorage.getItem('acape-session');
-  socket.emit('getAllClients', { token: token });
+  socket.emit('getClientesCompletos', { token: token });
 
-  socket.once('getAllClients', (data) => {
+  socket.once('getClientesCompletos', (data) => {
     let cliente = data.data[id];
     popup.open({
       title: "Manager Cliente",
@@ -2898,8 +2917,8 @@ function editarCliente(id) {
 
 function reloadClientes() {
   let token = sessionStorage.getItem('acape-session');
-  socket.emit('getAllClients', { token: token });
-  socket.once('getAllClients', (data) => {
+  socket.emit('getClientesCompletos', { token: token });
+  socket.once('getClientesCompletos', (data) => {
     if (!data.data) return Toast.fire({
       title: "Clientes",
       text: data.message
@@ -3279,6 +3298,7 @@ function enviarImportacionClientes() {
   socket.once('createClientsBulk', (data) => {
     if (!data.data) return Toast.fire({ title: "Importar clientes", text: data.message || "No se pudo importar.", icon: "error" });
 
+    sessionStorage.removeItem('clients-lite');
     popup.close();
     reloadClientes();
 
@@ -5126,6 +5146,7 @@ socket.on('clientes-manager', (data) => {
   })
 
   if (data.data) {
+    sessionStorage.removeItem('clients-lite');
     popup.close()
     reloadClientes();
   };

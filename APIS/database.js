@@ -1727,7 +1727,22 @@ final_venta.vueltas = final_venta.recibido - final_venta.total_pago;
 	getClients(data){
 		let validateUser = this.validatePerms(data, 'view');
 		if(!validateUser) return {message: "No tiene permisos suficientes."};
-		let clientes = this.db.getData('/data/simple/clientes');
+		let clientes = this.db.getData('/data/simple/clientes', ['compras']);
+		let livianos = {};
+		converterArray(clientes).forEach(ch => {
+			livianos[ch.id] = {
+				id: ch.id,
+				name: ch.name != null ? ch.name : '',
+				document: ch.document != null ? ch.document : ''
+			};
+		});
+		return {message: "Lista de clientes", data: livianos};
+	}
+
+	getClientesCompletos(data){
+		let validateUser = this.validatePerms(data, 'view');
+		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		let clientes = this.db.getData('/data/simple/clientes', ['compras']);
 		return {message: "Lista de clientes", data: clientes};
 	}
 

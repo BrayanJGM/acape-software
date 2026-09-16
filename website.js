@@ -1317,6 +1317,14 @@ router.post('/getAllClients', (req, res) => {
   return res.json(database.getClients(data.token));
 })
 
+router.post('/getClientesCompletos', (req, res) => {
+  const data = req.body;
+
+  if (!data) return res.json({ message: "Agrega el token del usuario." });
+
+  return res.json(database.getClientesCompletos(data.token));
+})
+
 router.post('/getComprasCliente', (req, res) => {
   const { id, token } = req.body || {};
   if (id == null) return res.json({ message: "Agrega el id del cliente." });
