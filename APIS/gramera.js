@@ -484,6 +484,7 @@ async function conectar({ port: puerto, baudRate: baud }) {
 
   try {
     await openPort();
+    await recordarIdentidadPuerto();
     return { config, conectada: true, mensaje: 'Conectado a ' + config.port };
   } catch (err) {
     const error = (err && err.message) ? err.message : 'No se pudo abrir el puerto ' + config.port;
@@ -568,6 +569,7 @@ async function detectarBaud() {
   connect();
   try {
     await openPort();
+    await recordarIdentidadPuerto();
   } catch (err) {}
 
   return { port: portName, resultado, mejor, config };
@@ -584,15 +586,73 @@ function cancelarReintento() {
   }
 }
 
+// ELIGE EL PUERTO DE LA GRAMERA ENTRE LOS DISPONIBLES:
+// 1) el mismo dispositivo de la ultima conexion (serial/vendor),
+// 2) el puerto configurado si sigue existiendo,
+// 3) el unico puerto USB, o el unico puerto disponible.
+function elegirPuertoGramera(puertos) {
+  if (!puertos || !puertos.length) return null;
+
+  if (config.serialNumber || (config.vendorId && config.productId)) {
+    const mismo = puertos.find(p =>
+      (config.serialNumber && p.serialNumber === config.serialNumber) ||
+      (config.vendorId && p.vendorId === config.vendorId && p.productId === config.productId)
+    );
+    if (mismo) return mismo;
+  }
+
+  const configurado = puertos.find(p => p.path === config.port);
+  if (configurado) return configurado;
+
+  const usb = puertos.filter(p => p.vendorId && p.productId);
+  if (usb.length === 1) return usb[0];
+
+  if (puertos.length === 1) return puertos[0];
+
+  return null;
+}
+
+// GUARDA LA IDENTIDAD DEL DISPOSITIVO CONECTADO PARA RECONOCERLO AUNQUE
+// WINDOWS LE CAMBIE EL NUMERO DE COM TRAS UN REINICIO O RECONEXION.
+async function recordarIdentidadPuerto() {
+  try {
+    const puertos = await SerialPort.list();
+    const p = puertos.find(x => x.path === config.port);
+    if (!p) return;
+    config.serialNumber = p.serialNumber || null;
+    config.vendorId = p.vendorId || null;
+    config.productId = p.productId || null;
+    saveConfig(config);
+  } catch (err) {}
+}
+
+// INTENTA CONECTAR DESCUBRIENDO EL PUERTO CORRECTO (por si cambio de numero)
+async function intentarConexionAutomatica() {
+  let puertos = [];
+  try { puertos = await SerialPort.list(); } catch (err) {}
+
+  const elegido = elegirPuertoGramera(puertos);
+  if (!elegido) throw new Error('No hay un puerto serial disponible para la gramera');
+
+  if (elegido.path !== config.port) {
+    console.log('Gramera: usando el puerto ' + elegido.path + ' (antes ' + config.port + ')');
+    config.port = elegido.path;
+    saveConfig(config);
+  }
+
+  disconnect();
+  connect();
+  await openPort();
+  await recordarIdentidadPuerto();
+}
+
 function programarReintento() {
   if (autoReintento) return;
   autoReintento = true;
 
   const reintentar = () => {
     if (!autoReintento) return;
-    disconnect();
-    connect();
-    openPort().then(() => {
+    intentarConexionAutomatica().then(() => {
       cancelarReintento();
       console.log('Gramera auto-reconectada en ' + config.port);
     }).catch((err) => {
@@ -605,8 +665,9 @@ function programarReintento() {
 }
 
 // Servidor arranca y se conecta automaticamente
-connect();
-openPort().catch((err) => {
+intentarConexionAutomatica().then(() => {
+  console.log('Gramera conectada en ' + config.port);
+}).catch((err) => {
   console.log('Auto-conexión de gramera fallida:', err.message);
   programarReintento();
 });
