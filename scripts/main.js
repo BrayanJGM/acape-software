@@ -596,7 +596,7 @@ socket.on('login-acape', (data) => {
 
 // ROUTER FUNCTIONS --------------------------------------------------
 
-function setListProduct(data) {
+function setListProduct(data, desdePesaje = false) {
   let products = JSON.parse(sessionStorage.getItem('products'));
 
   let array_products = converterArray(products)
@@ -608,7 +608,7 @@ function setListProduct(data) {
     icon: "error"
   });
 
-  if (esDePeso(findingProduct)) {
+  if (esDePeso(findingProduct) && !desdePesaje) {
     abrirPesajePopup(data, 'agregar');
     return;
   }
@@ -870,7 +870,7 @@ function pesajePopupTick() {
 function aplicarPesaje(id, peso, modo) {
   let list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
   if (modo == 'agregar') {
-    setListProduct(id);
+    setListProduct(id, true);
     list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
   }
   list.forEach((el) => { if (el.id == id) el.cantidad = peso; });
