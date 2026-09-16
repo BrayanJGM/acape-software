@@ -1124,15 +1124,12 @@ function changeCantidad(id, e) {
   if (!actuallyProductsList) return;
 
   let productList = JSON.parse(actuallyProductsList);
-  let finalPrice = 0;
   productList.forEach((element, i, array) => {
     if (element.id == id) {
       if (!array[i].stock) {
         array[i].cantidad = e.value ? e.value : 1;
-        finalPrice = Number(finalPrice) + Number(element.cantidad ? (element.price * array[i].cantidad) : element.price);
         sessionStorage.setItem('actually-list-products', JSON.stringify(array));
-        document.querySelector(`.change-price-${id}`).innerHTML = `${formatNumber(array[i].price*array[i].cantidad)}`;
-        document.querySelector('.edit-total').innerHTML = formatNumber(finalPrice);
+        actualizarLinea(id, { setFinal: true });
         return;
       }
       if (array[i].stock < Number(e.value)) return Toast.fire({
@@ -1142,14 +1139,9 @@ function changeCantidad(id, e) {
       });
 
       array[i].cantidad = e.value ? e.value : 1;
-      finalPrice = Number(finalPrice) + Number(element.cantidad ? (element.price * array[i].cantidad) : element.price);
       sessionStorage.setItem('actually-list-products', JSON.stringify(array));
-      document.querySelector(`.change-price-${id}`).innerHTML = `${array[i].price*array[i].cantidad}`;
-    } else {
-      finalPrice = Number(finalPrice) + Number(element.cantidad ? (element.price * element.cantidad) : element.price);
+      actualizarLinea(id, { setFinal: true });
     }
-
-    document.querySelector('.edit-total').innerHTML = formatNumber(finalPrice);
   });
 
   return false;
@@ -1166,14 +1158,18 @@ function listingProducts() {
     return `<tr>
         <td>${ch.id}</td>
         <td>${ch.name}</td>
-        <td>${formatNumber(ch.price)}</td>
         <td class="non-padding">
-          <input oninput="return changeCantidad('${ch.id}', this)" type="number" step="0.001" value="${ch.cantidad?ch.cantidad:1}" ${!ch.cantidad?"disabled":""}>
+          <input class="line-precio-${ch.id}" oninput="return changePrecioLinea('${ch.id}', this)" type="number" step="any" value="${ch.price?ch.price:0}">
+        </td>
+        <td class="non-padding">
+          <input class="line-cantidad-${ch.id}" oninput="return changeCantidad('${ch.id}', this)" type="number" step="0.001" value="${ch.cantidad?ch.cantidad:1}">
         </td>
         <td class="text-center">
           ${esDePeso(ch) ? `<button class="btn btn-outline-info btn-sm" onclick="pesarProducto('${ch.id}')"><i class="fa-solid fa-weight-scale"></i> Pesar</button>` : ""}
         </td>
-        <td class="change-price-${ch.id}">${formatNumber(ch.cantidad?(ch.price*(ch.cantidad?ch.cantidad:0)):ch.price)}</td>
+        <td class="non-padding">
+          <input class="line-final-${ch.id}" oninput="return changeImporteLinea('${ch.id}', this)" type="number" step="any" value="${ch.cantidad?(ch.price*(ch.cantidad?ch.cantidad:0)):ch.price}">
+        </td>
         <td class="text-center cursor-pointer" onclick="deleteList('${ch.id}')">x</td>
       </tr>`
   }).join('')
@@ -1185,6 +1181,58 @@ function listingProducts() {
   }
 
   document.querySelector('.edit-total').innerHTML = `$ ${formatNumber(finalPrice)}`;
+}
+
+// RECALCULA EL TOTAL DE LA VENTA A PARTIR DE LA LISTA GUARDADA
+function actualizarTotalVenta() {
+  let list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
+  let total = list.reduce((acc, ch) => acc + Number(ch.cantidad ? (ch.price * ch.cantidad) : ch.price), 0);
+  let el = document.querySelector('.edit-total');
+  if (el) el.innerHTML = `$ ${formatNumber(total)}`;
+}
+
+// ACTUALIZA LOS CAMPOS DEPENDIENTES DE UNA LINEA SIN PERDER EL FOCO
+function actualizarLinea(id, opciones = {}) {
+  let list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
+  let it = list.find(ch => ch.id == id);
+  if (!it) return;
+
+  if (opciones.setFinal) {
+    let final = it.cantidad ? (Number(it.price) * Number(it.cantidad)) : Number(it.price);
+    let input = document.querySelector(`.line-final-${id}`);
+    if (input) input.value = final;
+  }
+  if (opciones.setCantidad) {
+    let input = document.querySelector(`.line-cantidad-${id}`);
+    if (input) input.value = it.cantidad;
+  }
+  actualizarTotalVenta();
+}
+
+// CAMBIA EL PRECIO DE UNA LINEA (SOLO ESTA VENTA) Y RECALCULA SU PRECIO FINAL
+function changePrecioLinea(id, e) {
+  let list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
+  let it = list.find(ch => ch.id == id);
+  if (!it) return false;
+  it.price = Number(removeCommaSeparators(e.value)) || 0;
+  if (it.price_mayor != null) it.price_mayor = it.price;
+  sessionStorage.setItem('actually-list-products', JSON.stringify(list));
+  actualizarLinea(id, { setFinal: true });
+  return false;
+}
+
+// CAMBIA EL PRECIO FINAL (MONTO $) DE UNA LINEA Y CALCULA LA CANTIDAD (KG)
+function changeImporteLinea(id, e) {
+  let list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
+  let it = list.find(ch => ch.id == id);
+  if (!it) return false;
+  let precio = Number(it.price) || 0;
+  if (precio <= 0) return false;
+  let importe = Number(removeCommaSeparators(e.value)) || 0;
+  it.cantidad = Math.round((importe / precio) * 1000) / 1000;
+  sessionStorage.setItem('actually-list-products', JSON.stringify(list));
+  actualizarLinea(id, { setCantidad: true });
+  return false;
 }
 
 function changeCantidadEntrada(id, e) {
