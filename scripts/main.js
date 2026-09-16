@@ -2924,24 +2924,44 @@ function reloadClientes() {
       text: data.message
     });
 
-    let array_clients = converterArray(data.data);
-    let maping_clients = array_clients.map(ch => `
-      <tr>
-        <td>${ch.id}</td>
-        <td>${ch.name}</td>
-        <td>${ch.document}</td>
-        <td>${ch.phone}</td>
-        <td>${ch.categoria || ""}</td>
-        <td>${ch.proviene || ""}</td>
-        <td>
-          <button class="btn btn-outline-info" onclick="editarCliente('${ch.id}')"><i class="fa-solid fa-pen"></i></button>
-          <button class="btn btn-outline-primary" onclick="verComprasCliente(${ch.id})"><i class="fa-solid fa-bag-shopping"></i> Compras</button>
-        </td>
-      </tr>
-    `);
-    document.querySelector('.tbody-clientes').innerHTML = "";
-    document.querySelector('.tbody-clientes').innerHTML = maping_clients;
+    window._clientesPagina = converterArray(data.data).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    let inputBusqueda = document.querySelector('#buscarClientePagina');
+    renderTablaClientes(inputBusqueda && inputBusqueda.value ? inputBusqueda.value : '');
   })
+}
+
+function renderTablaClientes(consulta) {
+  let tbody = document.querySelector('.tbody-clientes');
+  if (!tbody) return;
+  let q = normalizarTexto(consulta || '');
+  let lista = (window._clientesPagina || []).filter(ch => {
+    if (!q) return true;
+    return normalizarTexto(ch.name || '').includes(q) || normalizarTexto(ch.document || '').includes(q);
+  });
+
+  tbody.innerHTML = "";
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Sin coincidencias</td></tr>';
+    return;
+  }
+  tbody.innerHTML = lista.map(ch => `
+    <tr>
+      <td>${ch.id}</td>
+      <td>${ch.name}</td>
+      <td>${ch.document}</td>
+      <td>${ch.phone}</td>
+      <td>${ch.categoria || ""}</td>
+      <td>${ch.proviene || ""}</td>
+      <td>
+        <button class="btn btn-outline-info" onclick="editarCliente('${ch.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-outline-primary" onclick="verComprasCliente(${ch.id})"><i class="fa-solid fa-bag-shopping"></i> Compras</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filtrarClientesPagina(valor) {
+  renderTablaClientes(valor);
 }
 
 function verComprasCliente(id) {
@@ -3330,6 +3350,9 @@ router.get('/clientes', () => {
       <div class="text-center">
         <button class="btn btn-outline-primary" onclick="createClient()">Nuevo Cliente</button>
         <button class="btn btn-outline-primary" onclick="importarClientes()">Importar Clientes</button>
+      </div>
+      <div class="my-3">
+        <input type="text" id="buscarClientePagina" class="form-control" autocomplete="off" placeholder="Buscar cliente por nombre o documento..." oninput="filtrarClientesPagina(this.value)">
       </div>
       <br>
       <div class="clients-table">
