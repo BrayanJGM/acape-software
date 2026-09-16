@@ -27,6 +27,9 @@ let lastRaw = [];
 let readings = 0;
 let chunks = 0;
 let detectMode = false;
+let autoReintento = false;
+let reintentoTimer = null;
+const REINTENTO_MS = 5000;
 
 // TRAZAS: ultimas tramas completas recibidas (para diagnostico remoto)
 const trazas = [];
@@ -463,6 +466,7 @@ function openPort() {
 
 // CONECTAR A UN PUERTO ESPECIFICO (await del open para devolver el estado REAL)
 async function conectar({ port: puerto, baudRate: baud }) {
+  cancelarReintento();
   disconnect();
   lastReading = null;
   buffer = '';
@@ -490,6 +494,7 @@ async function conectar({ port: puerto, baudRate: baud }) {
 
 // DESCONECTAR (cierra el puerto pero conserva la config)
 function desconectar() {
+  cancelarReintento();
   disconnect();
   lastReading = null;
   buffer = '';
@@ -519,6 +524,8 @@ function puntuarTramas(texto) {
 async function detectarBaud() {
   const portName = config.port;
   const original = config.baudRate;
+
+  cancelarReintento();
 
   const resultado = [];
   let mejor = { baud: original, puntos: 0, muestra: '' };
@@ -566,10 +573,42 @@ async function detectarBaud() {
   return { port: portName, resultado, mejor, config };
 }
 
+// REINTENTO AUTOMATICO: si la auto-conexion de arranque falla (ej. "OPENCOM"),
+// se reintenta abrir el puerto periodicamente hasta lograrlo, sin necesidad
+// de desconectar y reconectar la gramera fisicamente.
+function cancelarReintento() {
+  autoReintento = false;
+  if (reintentoTimer) {
+    clearTimeout(reintentoTimer);
+    reintentoTimer = null;
+  }
+}
+
+function programarReintento() {
+  if (autoReintento) return;
+  autoReintento = true;
+
+  const reintentar = () => {
+    if (!autoReintento) return;
+    disconnect();
+    connect();
+    openPort().then(() => {
+      cancelarReintento();
+      console.log('Gramera auto-reconectada en ' + config.port);
+    }).catch((err) => {
+      console.log('Reintento de gramera fallido (' + config.port + '): ' + err.message);
+      reintentoTimer = setTimeout(reintentar, REINTENTO_MS);
+    });
+  };
+
+  reintentoTimer = setTimeout(reintentar, REINTENTO_MS);
+}
+
 // Servidor arranca y se conecta automaticamente
 connect();
 openPort().catch((err) => {
   console.log('Auto-conexión de gramera fallida:', err.message);
+  programarReintento();
 });
 
 module.exports = { getPeso, getConfig, setDebug, getTests, guardarTest, limpiarTests, getTrazas, conectar, desconectar, listPorts, detectarBaud };
