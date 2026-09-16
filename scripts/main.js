@@ -1659,6 +1659,7 @@ router.get(['/', '', '/app'], () => {
     `;
   } else {
     sessionValidator()
+    cargarClientesLite(() => {});
 
     socket.emit('getAllProducts', { token: sesion });
     socket.once('getAllProducts', (data) => {
