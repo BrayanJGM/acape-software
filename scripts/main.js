@@ -293,6 +293,11 @@ function removeCommaSeparators(input) {
   return input.replace(/,/g, '');
 }
 
+// REDONDEA UN MONTO A 2 DECIMALES PARA EVITAR ERRORES DE PUNTO FLOTANTE EN VENTAS POR PESO
+function redondearMoneda(numero) {
+  return Math.round(Number(numero) * 100) / 100;
+}
+
 document.addEventListener('input', function(e) {
   if (e.target.classList.contains('numberify-input-commas')) {
     addCommaSeparators(e.target);
@@ -1154,12 +1159,12 @@ function listingProducts() {
   // xd
   let finalPrice = 0;
   let final_html = array_productsList.map(ch => {
-    finalPrice = Number(finalPrice) + Number(ch.cantidad ? (ch.price * (ch.cantidad ? ch.cantidad : 0)) : ch.price);
+    finalPrice = redondearMoneda(finalPrice + Number(ch.cantidad ? (ch.price * (ch.cantidad ? ch.cantidad : 0)) : ch.price));
     return `<tr>
         <td>${ch.id}</td>
         <td>${ch.name}</td>
         <td class="non-padding">
-          <input class="line-precio-${ch.id}" oninput="return changePrecioLinea('${ch.id}', this)" type="number" step="any" value="${ch.price?ch.price:0}">
+          <input class="line-precio-${ch.id} numberify-input-commas" oninput="return changePrecioLinea('${ch.id}', this)" type="text" value="${formatNumber(ch.price?ch.price:0)}">
         </td>
         <td class="non-padding">
           <input class="line-cantidad-${ch.id}" oninput="return changeCantidad('${ch.id}', this)" type="number" step="0.001" value="${ch.cantidad?ch.cantidad:1}">
@@ -1168,7 +1173,7 @@ function listingProducts() {
           ${esDePeso(ch) ? `<button class="btn btn-outline-info btn-sm" onclick="pesarProducto('${ch.id}')"><i class="fa-solid fa-weight-scale"></i> Pesar</button>` : ""}
         </td>
         <td class="non-padding">
-          <input class="line-final-${ch.id}" oninput="return changeImporteLinea('${ch.id}', this)" type="number" step="any" value="${ch.cantidad?(ch.price*(ch.cantidad?ch.cantidad:0)):ch.price}">
+          <input class="line-final-${ch.id} numberify-input-commas" oninput="return changeImporteLinea('${ch.id}', this)" type="text" value="${formatNumber(redondearMoneda(ch.cantidad?(ch.price*(ch.cantidad?ch.cantidad:0)):ch.price))}">
         </td>
         <td class="text-center cursor-pointer" onclick="deleteList('${ch.id}')">x</td>
       </tr>`
@@ -1186,7 +1191,7 @@ function listingProducts() {
 // RECALCULA EL TOTAL DE LA VENTA A PARTIR DE LA LISTA GUARDADA
 function actualizarTotalVenta() {
   let list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
-  let total = list.reduce((acc, ch) => acc + Number(ch.cantidad ? (ch.price * ch.cantidad) : ch.price), 0);
+  let total = redondearMoneda(list.reduce((acc, ch) => acc + Number(ch.cantidad ? (ch.price * ch.cantidad) : ch.price), 0));
   let el = document.querySelector('.edit-total');
   if (el) el.innerHTML = `$ ${formatNumber(total)}`;
 }
@@ -1198,9 +1203,9 @@ function actualizarLinea(id, opciones = {}) {
   if (!it) return;
 
   if (opciones.setFinal) {
-    let final = it.cantidad ? (Number(it.price) * Number(it.cantidad)) : Number(it.price);
+    let final = redondearMoneda(it.cantidad ? (Number(it.price) * Number(it.cantidad)) : Number(it.price));
     let input = document.querySelector(`.line-final-${id}`);
-    if (input) input.value = final;
+    if (input) input.value = formatNumber(final);
   }
   if (opciones.setCantidad) {
     let input = document.querySelector(`.line-cantidad-${id}`);
@@ -1209,12 +1214,19 @@ function actualizarLinea(id, opciones = {}) {
   actualizarTotalVenta();
 }
 
+// LEE UN PRECIO/IMPORTE ESCRITO EN UN INPUT CON FORMATO (COMAS Y POSIBLES DECIMALES)
+function parsePrecioInput(valor) {
+  let limpio = String(valor == null ? "" : valor).replace(/[^0-9.]/g, "");
+  let entero = limpio.split(".")[0];
+  return Number(entero) || 0;
+}
+
 // CAMBIA EL PRECIO DE UNA LINEA (SOLO ESTA VENTA) Y RECALCULA SU PRECIO FINAL
 function changePrecioLinea(id, e) {
   let list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
   let it = list.find(ch => ch.id == id);
   if (!it) return false;
-  it.price = Number(removeCommaSeparators(e.value)) || 0;
+  it.price = parsePrecioInput(e.value);
   if (it.price_mayor != null) it.price_mayor = it.price;
   sessionStorage.setItem('actually-list-products', JSON.stringify(list));
   actualizarLinea(id, { setFinal: true });
@@ -1228,7 +1240,7 @@ function changeImporteLinea(id, e) {
   if (!it) return false;
   let precio = Number(it.price) || 0;
   if (precio <= 0) return false;
-  let importe = Number(removeCommaSeparators(e.value)) || 0;
+  let importe = parsePrecioInput(e.value);
   it.cantidad = Math.round((importe / precio) * 1000) / 1000;
   sessionStorage.setItem('actually-list-products', JSON.stringify(list));
   actualizarLinea(id, { setCantidad: true });
@@ -1301,7 +1313,7 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
   let token = sessionStorage.getItem('acape-session');
   let data = {
     venta: actuallyList,
-    total_recibido: removeCommaSeparators(e[1].value),
+    total_recibido: Number(removeCommaSeparators(e[1].value)),
     token: token,
     mayor: mayor,
     type: e[0].value,
@@ -1317,16 +1329,16 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
     ch.cantidad = ch.cantidad ? ch.cantidad : 1;
 
     if (mayor) {
-      simplifiedPay = ch.price_mayor ? (ch.price_mayor * ch.cantidad) : ch.price * ch.cantidad;
+      simplifiedPay = redondearMoneda(ch.price_mayor ? (ch.price_mayor * ch.cantidad) : ch.price * ch.cantidad);
     } else {
-      simplifiedPay = ch.price * ch.cantidad;
+      simplifiedPay = redondearMoneda(ch.price * ch.cantidad);
     }
 
-    finalToPay = finalToPay + Number(simplifiedPay);
+    finalToPay = redondearMoneda(finalToPay + simplifiedPay);
     return simplifiedPay;
   });
 
-  if (data.total_recibido < finalToPay) return Toast.fire({
+  if (finalToPay - data.total_recibido > 0.005) return Toast.fire({
     text: "No puede ser menor el total Recibido",
     icon: "error"
   });
@@ -1373,7 +1385,7 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
 
 popup.open({
     title: "Venta hecha",
-    content: `Total a pagar: ${formatNumber(finalPrice)} <br> Total Recibido: ${formatNumber(data.total_recibido)} <br><br> Vueltos: ${formatNumber(Number(removeCommaSeparators(e[1].value)) - finalPrice)} <br><br> <button class="btn btn-outline-success" onclick="imprimirReciboVenta()">Imprimir recibo</button> <button id="btnAceptarVentaHecha" class="btn btn-outline-info" onclick="popup.close()">Aceptar</button>`
+    content: `Total a pagar: ${formatNumber(finalPrice)} <br> Total Recibido: ${formatNumber(data.total_recibido)} <br><br> Vueltos: ${formatNumber(redondearMoneda(Number(removeCommaSeparators(e[1].value)) - finalPrice))} <br><br> <button class="btn btn-outline-success" onclick="imprimirReciboVenta()">Imprimir recibo</button> <button id="btnAceptarVentaHecha" class="btn btn-outline-info" onclick="popup.close()">Aceptar</button>`
   });
 
   limpiarListadoVenta();
@@ -1536,7 +1548,7 @@ function facturacion() {
   let finalPrice = 0;
 
   let finalProducts = finalList.map(ch => {
-    finalPrice = Number(finalPrice) + Number(ch.cantidad ? (ch.price * ch.cantidad) : ch.price);
+    finalPrice = redondearMoneda(finalPrice + Number(ch.cantidad ? (ch.price * ch.cantidad) : ch.price));
 
     return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price)} | Precio Final: ${formatNumber(ch.cantidad?(ch.price * ch.cantidad):ch.price)}</div>`;
   }).join('');
@@ -1592,7 +1604,7 @@ function facturacionMayor() {
   let finalPrice = 0;
 
   let finalProducts = finalList.map(ch => {
-    finalPrice = Number(finalPrice) + Number(ch.cantidad ? ((ch.price_mayor ? ch.price_mayor : ch.price) * ch.cantidad) : (ch.price_mayor ? ch.price_mayor : ch.price));
+    finalPrice = redondearMoneda(finalPrice + Number(ch.cantidad ? ((ch.price_mayor ? ch.price_mayor : ch.price) * ch.cantidad) : (ch.price_mayor ? ch.price_mayor : ch.price)));
 
     return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price_mayor?ch.price_mayor:ch.price + ' (Este producto no tiene precio por mayor)')} | Precio Final: ${formatNumber(Number(ch.cantidad?((ch.price_mayor?ch.price_mayor:ch.price) * ch.cantidad):(ch.price_mayor?ch.price_mayor:ch.price)))}</div>`;
   }).join('')
@@ -4214,11 +4226,11 @@ function openCreatePedido(mayor) {
 
   let finalProducts = finalProductList.map(ch => {
     if (mayor) {
-      finalPrice = Number(finalPrice) + Number(ch.cantidad ? ((ch.price_mayor ? ch.price_mayor : ch.price) * ch.cantidad) : (ch.price_mayor ? ch.price_mayor : ch.price));
+      finalPrice = redondearMoneda(finalPrice + Number(ch.cantidad ? ((ch.price_mayor ? ch.price_mayor : ch.price) * ch.cantidad) : (ch.price_mayor ? ch.price_mayor : ch.price)));
 
       return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price_mayor?ch.price_mayor:ch.price + ' (Este producto no tiene precio por mayor)')} | Precio Final: ${formatNumber(Number(ch.cantidad?((ch.price_mayor?ch.price_mayor:ch.price) * ch.cantidad):(ch.price_mayor?ch.price_mayor:ch.price)))}</div>`;
     } else {
-      finalPrice = Number(finalPrice) + Number(ch.cantidad ? (ch.price * ch.cantidad) : ch.price);
+      finalPrice = redondearMoneda(finalPrice + Number(ch.cantidad ? (ch.price * ch.cantidad) : ch.price));
 
       return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price)} | Precio Final: ${formatNumber(ch.cantidad?(ch.price * ch.cantidad):ch.price)}</div>`;
     }

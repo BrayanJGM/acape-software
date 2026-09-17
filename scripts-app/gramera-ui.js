@@ -3,10 +3,13 @@
 const GrameraUI = (function () {
   const bauds = [1200, 2400, 4800, 9600, 19200, 38400];
   const timers = new Set();
+  let instancias = 0;
 
   function iniciar(contenedor, opts = {}) {
     const el = typeof contenedor === 'string' ? document.querySelector(contenedor) : contenedor;
     if (!el) return null;
+
+    const uid = ++instancias;
 
     el.innerHTML = `
       <div class="gramera-ui card p-4 mb-3">
@@ -15,8 +18,8 @@ const GrameraUI = (function () {
         <div class="gramera-ui-estado mb-3 text-muted">Consultando estado...</div>
 
         <div class="form-check form-switch mb-3">
-          <input class="form-check-input gramera-ui-debug" type="checkbox" id="grameraDebug">
-          <label class="form-check-label small" for="grameraDebug">Registrar en consola (diagnóstico)</label>
+          <input class="form-check-input gramera-ui-debug" type="checkbox" id="grameraDebug${uid}">
+          <label class="form-check-label small" for="grameraDebug${uid}">Registrar en consola (diagnóstico)</label>
         </div>
 
         <label class="fw-bold"><i class="fa-solid fa-list"></i> Puertos detectados</label>
@@ -25,10 +28,11 @@ const GrameraUI = (function () {
 
         <div class="border rounded p-2 mb-3">
           <div class="form-check">
-            <input class="form-check-input gramera-ui-manual-check" type="checkbox" id="grameraManual">
-            <label class="form-check-label" for="grameraManual">Puerto manual (escribe el nombre del puerto)</label>
+            <input class="form-check-input gramera-ui-manual-check" type="checkbox" id="grameraManual${uid}">
+            <label class="form-check-label" for="grameraManual${uid}">Puerto manual (escribe el nombre del puerto)</label>
           </div>
-          <input type="text" class="form-control gramera-ui-manual-input mt-2" placeholder="COM3" disabled>
+          <input type="text" class="form-control gramera-ui-manual-input mt-2" placeholder="COM3 o /dev/pts/6" autocomplete="off">
+          <div class="form-text small">Si escribes aquí, se conectará a este puerto en lugar de la lista.</div>
         </div>
 
         <label class="fw-bold">Baud rate</label>
@@ -86,8 +90,13 @@ const GrameraUI = (function () {
 
     const manualInput = el.querySelector('.gramera-ui-manual-input');
     const manualCheck = el.querySelector('.gramera-ui-manual-check');
+
+    const activarManual = () => {
+      if (!manualCheck.checked) manualCheck.checked = true;
+    };
+    manualInput.addEventListener('focus', activarManual);
+    manualInput.addEventListener('input', activarManual);
     manualCheck.addEventListener('change', () => {
-      manualInput.disabled = !manualCheck.checked;
       if (manualCheck.checked) manualInput.focus();
     });
 
@@ -181,20 +190,17 @@ const GrameraUI = (function () {
   }
 
   function conectar(el) {
-    const manualCheck = el.querySelector('.gramera-ui-manual-check');
     const manualInput = el.querySelector('.gramera-ui-manual-input');
-    let port = null;
+    let port = manualInput ? manualInput.value.trim() : '';
 
-    if (manualCheck.checked) {
-      port = manualInput.value.trim();
-    } else {
+    if (!port) {
       const radio = el.querySelector('input[name="gramera-puerto"]:checked');
       port = radio ? radio.value : null;
     }
 
     const baud = Number(el.querySelector('.gramera-ui-baud').value);
 
-    if (!port) return mostrarMsg(el, 'Selecciona un puerto de la lista o activa el puerto manual.', true);
+    if (!port) return mostrarMsg(el, 'Selecciona un puerto de la lista o escribe un puerto manual.', true);
 
     mostrarMsg(el, 'Conectando a ' + port + '...');
     axios.post('/gramera/conectar', { port, baudRate: baud }).then((resp) => {

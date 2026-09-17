@@ -1090,14 +1090,18 @@ router.post('/removeDeuda', (req, res) => {
 
 // FUNCIONES DE PRODUCTOS DE LA APP PRINCIPAL --- PRODUCTS//
 
-router.post('/products/ingreso', (req, res) => {
+router.post('/products/ingreso', async (req, res) => {
   const data = req.body;
 
   if(!data.token) return res.json({message: "Agrega el token para poder acceder a las funciones."});
 
   if(!data.product) return res.json({message: "Agrega la información del producto"});
 
-  return res.json(database.ingresoProduct(data.product.id, {price: data.product.price, cantidad: data.product.cantidad}, data.token));
+  const result = await database.ingresoProducts(
+    [{ id: data.product.id, price: data.product.price, cantidad: data.product.cantidad }],
+    data.token
+  );
+  return res.json(result);
 })
 
 router.post('/createProduct', (req, res) => {
@@ -1200,7 +1204,7 @@ router.post('/createVenta', (req, res) => {
   if (!data.total_recibido) return res.json({ message: "Agrega el total recibido por parte del cliente." });
   if (!data.token) return res.json({ message: "Agrega el token para registrar la venta con tu usuario." });
 
-  let venta_creada = database.createVenta(data.venta, data.total_recibido, data.token, data.mayor, null, data.clientId);
+  let venta_creada = database.createVenta(data.venta, Number(removeCommaSeparators(String(data.total_recibido))), data.token, data.mayor, null, data.clientId);
 
   if(venta_creada.data){
     ventasCount += 1;
@@ -1230,7 +1234,7 @@ router.post('/createVentaDigital', (req, res) => {
   let method = database.method(data.type);
   if(!method.data) return res.json(method);
 
-  let creatingVenta = database.createVenta(data.venta, data.total_recibido, data.token, data.mayor, method.data.name, data.clientId);
+  let creatingVenta = database.createVenta(data.venta, Number(removeCommaSeparators(String(data.total_recibido))), data.token, data.mayor, method.data.name, data.clientId);
   if(!creatingVenta.data) return res.json(creatingVenta);
 
   database.addToGeneral({

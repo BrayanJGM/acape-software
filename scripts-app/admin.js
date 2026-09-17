@@ -2759,7 +2759,7 @@ router.get('/services', () => {
   sessionValidator();
 
   updateServices()
-  loadGrameraConfig()
+  setTimeout(loadGrameraConfig, 0)
 
   return `
     <br><br><br>
@@ -2777,9 +2777,12 @@ router.get('/services', () => {
 })
 
 // GRAMERA: CARGA LA INTERFAZ DE CONEXIÓN EN LA PÁGINA DE SERVICIOS
-function loadGrameraConfig() {
+function loadGrameraConfig(intentos = 20) {
   let el = document.querySelector('.gramera-config');
-  if (!el) return;
+  if (!el) {
+    if (intentos > 0) setTimeout(() => loadGrameraConfig(intentos - 1), 50);
+    return;
+  }
   GrameraUI.iniciar(el);
 }
 

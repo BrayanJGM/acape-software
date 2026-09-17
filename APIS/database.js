@@ -45,6 +45,11 @@ function removeCommaSeparators(input) {
   return input.replace(/,/g, '');
 }
 
+// REDONDEA UN MONTO A 2 DECIMALES PARA EVITAR ERRORES DE PUNTO FLOTANTE EN VENTAS POR PESO
+function redondearMoneda(numero) {
+  return Math.round(Number(numero) * 100) / 100;
+}
+
 function formatNumber(number) {
   // Limita a dos decimales
   const formattedNumber = Number(number).toFixed(2);
@@ -1394,7 +1399,7 @@ class Database {
 				}
 			}
 			
-			final_product.precio_final = final_product.precio_unitario * final_product.cantidad;
+			final_product.precio_final = redondearMoneda(final_product.precio_unitario * final_product.cantidad);
 
 			final_data.push(final_product)			
 			final_count = final_count + final_product.precio_final;
@@ -1421,6 +1426,8 @@ class Database {
 	// NO NECESITA ELIMINARSE LA LINEA CANTIDADSOLICITADA
 	createVenta(ventas = [], total_recibido = 0, token, mayor, digital, clientId) {
 	  if (!ventas[0]) return { message: "Añade productos para concretar la venta." };
+
+	  total_recibido = redondearMoneda(removeCommaSeparators(String(total_recibido == null ? 0 : total_recibido))) || 0;
 
 	  let products = this.db.getData('/data/simple/products');
 	  let ids = this.db.getData('/data/simple/id');
@@ -1466,7 +1473,7 @@ class Database {
 	      costo_adquisitivo: findingProduct.costo_adquisitivo
 	    };
 
-	    final_product.precio_final = final_product.precio_unitario * final_product.cantidad;
+	    final_product.precio_final = redondearMoneda(final_product.precio_unitario * final_product.cantidad);
 
 	    // PARA SABER QUE PRODUCTOS FUERON MAS VENDIDOS
 	    findingProduct.selledChantity = (findingProduct.selledChantity?findingProduct.selledChantity:0) + 1;
@@ -1475,10 +1482,10 @@ class Database {
 	    this.db.setData(`/data/simple/products/${findingProduct.id}`, findingProduct);
 
 	    final_data.push(final_product);
-	    final_count += final_product.precio_final;
+	    final_count = redondearMoneda(final_count + final_product.precio_final);
 	  });
 
-	  if (final_count > total_recibido) {
+	  if (final_count - total_recibido > 0.005) {
 	    return { message: "El total recibido no puede ser menor al total pago." };
 	  }
 
@@ -1496,7 +1503,7 @@ class Database {
 	    digital: digital
 	  };
 
-final_venta.vueltas = final_venta.recibido - final_venta.total_pago;
+final_venta.vueltas = redondearMoneda(final_venta.recibido - final_venta.total_pago);
 
   this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
   this.db.setData('/data/simple/id', ids);
