@@ -108,8 +108,8 @@ async function sendReporteDia(){
     dataInfo.starting += Number(element.starting);
   });
 
-  let accounting_movements = database.db.getData('/data/simple/accounting');
-  let arrayMovements = converterArray(accounting_movements.movements);
+  let accounting_movements = database.db.getData('/data/simple/accounting') || {};
+  let arrayMovements = converterArray(accounting_movements.movements || {});
 
   const movementsHoy = arrayMovements.filter(item => {
     return normalizarFecha(item.date) === hoy;
@@ -1013,15 +1013,6 @@ router.post('/session-validator', (req, res) => {
 });
 
 // DEUDORES SECCION ---------------------- DEUDORES//
-router.post('/createDeudor', (req, res) => {
-  const data = req.body;
-
-  if(!data.token) return res.json({message: "Agrega el token para poder acceder a las funciones."});
-  if(!data.deudor) return res.json({message: "Agrega la información del deudor"});
-
-  res.json(database.createDeudor(data.deudor, data.token));
-})
-
 router.post('/getDeudores', (req, res) => {
   const data = req.body;
 
@@ -1030,12 +1021,12 @@ router.post('/getDeudores', (req, res) => {
   res.json(database.getDeudores(data.token));
 })
 
-router.post('/removeDeudor', (req, res) => {
+router.post('/getClientesConDeuda', (req, res) => {
   const data = req.body;
-  if(!data.id) return res.json({message: "Tienes que agregar el id del deudor"});
+
   if(!data.token) return res.json({message: "Agrega el token del usuario"});
 
-  res.json(database.deleteDeudor(data.id, data.token));
+  res.json(database.getClientesConDeuda(data.token));
 })
 
 router.post('/addDeuda', (req, res) => {
@@ -1201,10 +1192,10 @@ router.post('/createVenta', (req, res) => {
   const data = req.body;
 
   if (!data.venta) return res.json({ message: "Agrega la información de venta." });
-  if (!data.total_recibido) return res.json({ message: "Agrega el total recibido por parte del cliente." });
+  if (data.total_recibido === undefined || data.total_recibido === null || data.total_recibido === '') return res.json({ message: "Agrega el total recibido por parte del cliente." });
   if (!data.token) return res.json({ message: "Agrega el token para registrar la venta con tu usuario." });
 
-  let venta_creada = database.createVenta(data.venta, Number(removeCommaSeparators(String(data.total_recibido))), data.token, data.mayor, null, data.clientId);
+  let venta_creada = database.createVenta(data.venta, Number(removeCommaSeparators(String(data.total_recibido))), data.token, data.mayor, null, data.clientId, data.deudorId);
 
   if(venta_creada.data){
     ventasCount += 1;
@@ -1234,7 +1225,7 @@ router.post('/createVentaDigital', (req, res) => {
   let method = database.method(data.type);
   if(!method.data) return res.json(method);
 
-  let creatingVenta = database.createVenta(data.venta, Number(removeCommaSeparators(String(data.total_recibido))), data.token, data.mayor, method.data.name, data.clientId);
+  let creatingVenta = database.createVenta(data.venta, Number(removeCommaSeparators(String(data.total_recibido))), data.token, data.mayor, method.data.name, data.clientId, data.deudorId);
   if(!creatingVenta.data) return res.json(creatingVenta);
 
   database.addToGeneral({

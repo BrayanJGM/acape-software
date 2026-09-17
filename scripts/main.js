@@ -161,6 +161,7 @@ const popup = new alerter('.alerter');
 popup.start()
 
 function converterArray(object) {
+  if (!object) return [];
   let keys = Object.keys(object);
   let arrayToReturn = [];
 
@@ -1311,13 +1312,17 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
   event.preventDefault();
   let actuallyList = JSON.parse(sessionStorage.getItem('actually-list-products'));
   let token = sessionStorage.getItem('acape-session');
+  let fiadoSwitch = document.getElementById('ventaFiada');
+  let esFiado = !!fiadoSwitch && fiadoSwitch.checked;
+  let clienteIdEl = document.getElementById('clienteId');
+  let clienteId = clienteIdEl && clienteIdEl.value ? clienteIdEl.value : null;
   let data = {
     venta: actuallyList,
     total_recibido: Number(removeCommaSeparators(e[1].value)),
     token: token,
     mayor: mayor,
     type: e[0].value,
-    clientId: e[2] && e[2].value ? e[2].value : null,
+    clientId: clienteId,
     date: new Date() - 0
   };
 
@@ -1338,13 +1343,21 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
     return simplifiedPay;
   });
 
-  if (finalToPay - data.total_recibido > 0.005) return Toast.fire({
+  let haySaldoPendiente = finalToPay - data.total_recibido > 0.005;
+  let tieneDeuda = esFiado && !!clienteId && haySaldoPendiente;
+
+  if (esFiado && !clienteId) return Toast.fire({
+    text: "Selecciona un cliente para hacer la venta fiada",
+    icon: "warning"
+  });
+
+  if (haySaldoPendiente && !tieneDeuda) return Toast.fire({
     text: "No puede ser menor el total Recibido",
     icon: "error"
   });
 
-
   data.total_pago = finalToPay;
+  data.deudorId = tieneDeuda ? clienteId : null;
 
   console.log(data)
   
@@ -1360,6 +1373,7 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
     recibido: data.total_recibido,
     digital: (finding_method && finding_method.type == "digital") ? finding_method.name : null,
     clientId: data.clientId,
+    deudorId: data.deudorId,
     date: data.date
   };
 
@@ -1374,18 +1388,22 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
           text: data.message,
           icon: data.data ? "success" : "error"
         });
-        registCajaDigital(data, finalToPay)
+        if (!tieneDeuda) registCajaDigital(data, finalToPay)
       })
     })
   } else {
-    registCaja(data, finalToPay);
-    socket.emit('openCashDrawer', { token: "1" });
+    if (tieneDeuda) {
+      registCaja(data, data.total_recibido);
+    } else {
+      registCaja(data, finalToPay);
+      socket.emit('openCashDrawer', { token: "1" });
+    }
     setTimeout(() => { socket.emit('createVenta', data) }, 1000);
   }
 
 popup.open({
-    title: "Venta hecha",
-    content: `Total a pagar: ${formatNumber(finalPrice)} <br> Total Recibido: ${formatNumber(data.total_recibido)} <br><br> Vueltos: ${formatNumber(redondearMoneda(Number(removeCommaSeparators(e[1].value)) - finalPrice))} <br><br> <button class="btn btn-outline-success" onclick="imprimirReciboVenta()">Imprimir recibo</button> <button id="btnAceptarVentaHecha" class="btn btn-outline-info" onclick="popup.close()">Aceptar</button>`
+    title: tieneDeuda ? "Venta Fiada hecha" : "Venta hecha",
+    content: `Total a pagar: ${formatNumber(finalPrice)} <br> Total Recibido: ${formatNumber(data.total_recibido)} <br>${tieneDeuda ? ` <br> <span class="text-danger">Se registro una deuda de ${formatNumber(redondearMoneda(finalPrice - data.total_recibido))}</span><br>` : ""}<br> ${tieneDeuda ? "" : `Vueltos: ${formatNumber(redondearMoneda(Number(removeCommaSeparators(e[1].value)) - finalPrice))} <br><br>`} <button class="btn btn-outline-success" onclick="imprimirReciboVenta()">Imprimir recibo</button> <button id="btnAceptarVentaHecha" class="btn btn-outline-info" onclick="popup.close()">Aceptar</button>`
   });
 
   limpiarListadoVenta();
@@ -1473,6 +1491,7 @@ function activarBuscadorCliente(clientes, opts = {}) {
         <span class="buscador-cliente-nombre">${c.name}</span>
         <span class="small">${c.document ? c.document : ''}</span>
         <span class="small text-muted">${c.phone ? 'Tel: ' + c.phone : ''}</span>
+        ${Number(c.deuda) > 0 ? `<span class="small text-danger"><i class="fa-solid fa-circle-exclamation"></i> Adeuda: ${formatNumber(c.deuda)}</span>` : ''}
       </div>
     `).join('');
     resultados.hidden = false;
@@ -1560,36 +1579,133 @@ function facturacion() {
     popup.open({
       title: "Venta Normal",
       content: `
-      <form onsubmit="return sendCreateVenta(this, null, ${finalPrice}, event)">
-        <label htmlFor="">Metodos De Pago</label>
-        <select name="" value="efectivo" class="form-select">
-          <option value="efectivo">efectivo</option>
-          ${array_methods.map(ch => `<option value="${ch.name}">${ch.name}</option>`).join('')}
-        </select>
-        <label>Total Recibido</label>
-        <input type="text" class="form-control numberify-input-commas" value="${formatNumber(finalPrice)}">
-        <div class="buscador-cliente">
-          <input type="hidden" id="clienteId" value="">
-          <label>Cliente (opcional)</label>
-          <input type="text" id="buscarCliente" class="form-control" autocomplete="off" placeholder="Buscar por nombre o número de identidad">
-          <div id="resultadosCliente" class="buscador-cliente-resultados" hidden></div>
-          <button type="button" id="quitarCliente" class="btn btn-light btn-sm mt-1" hidden><i class="fa-solid fa-xmark"></i> Quitar cliente</button>
-        </div>
-        <div class="actual-venta">
-          ${finalProducts}
-          <hr>
-        </div>
-        <br>
-        <div class="precio-final"><h5>Total a pagar: $ ${formatNumber(finalPrice)}</h5></div>
-        <br>
-        <button id="btnFinalizarVenta" class="btn btn-block btn-outline-primary focusing" autofocus><i class="fa-solid fa-floppy-disk"></i> Finalizar</button>
-      </form>
-    `
+        <form onsubmit="return sendCreateVenta(this, null, ${finalPrice}, event)">
+          <label htmlFor="">Metodos De Pago</label>
+          <select name="" value="efectivo" class="form-select">
+            <option value="efectivo">efectivo</option>
+            ${array_methods.map(ch => `<option value="${ch.name}">${ch.name}</option>`).join('')}
+          </select>
+          <label>Total Recibido</label>
+          <input type="text" id="totalRecibido" class="form-control numberify-input-commas" value="${formatNumber(finalPrice)}">
+          <div class="buscador-cliente">
+            <input type="hidden" id="clienteId" value="">
+            <label>Cliente (opcional)</label>
+            <input type="text" id="buscarCliente" class="form-control" autocomplete="off" placeholder="Buscar por nombre o número de identidad">
+            <div id="resultadosCliente" class="buscador-cliente-resultados" hidden></div>
+            <button type="button" id="quitarCliente" class="btn btn-light btn-sm mt-1" hidden><i class="fa-solid fa-xmark"></i> Quitar cliente</button>
+          </div>
+          <div class="form-check form-switch mt-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="ventaFiada" value="1">
+            <label class="form-check-label" for="ventaFiada"><i class="fa-solid fa-file-invoice-dollar"></i> Venta fiada (a crédito)</label>
+            <div class="form-text" id="hintVentaFiada">Al activarlo, el monto no recibido queda como deuda del cliente.</div>
+          </div>
+          <div class="mt-2">
+            <button type="button" class="btn btn-outline-info btn-sm" onclick="crearClienteRapido('normal')"><i class="fa-solid fa-user-plus"></i> Crear cliente nuevo</button>
+          </div>
+          <div class="actual-venta">
+            ${finalProducts}
+            <hr>
+          </div>
+          <br>
+          <div class="precio-final"><h5>Total a pagar: $ ${formatNumber(finalPrice)}</h5></div>
+          <br>
+          <button id="btnFinalizarVenta" class="btn btn-block btn-outline-primary focusing" autofocus><i class="fa-solid fa-floppy-disk"></i> Finalizar</button>
+        </form>
+      `
     });
     activarBuscadorCliente(clientesVenta, { focusOnSelect: 'btnFinalizarVenta' });
+    autoSeleccionarClienteNuevo();
+    configurarSwitchFiado(finalPrice);
     let btnFinalizar = document.getElementById('btnFinalizarVenta');
     if (btnFinalizar) btnFinalizar.focus();
   });
+}
+
+function autoSeleccionarClienteNuevo() {
+  let pendiente = window._nuevoClientePendiente;
+  if (!pendiente) return;
+  window._nuevoClientePendiente = null;
+
+  let clienteId = document.getElementById('clienteId');
+  let buscarCliente = document.getElementById('buscarCliente');
+  let quitarCliente = document.getElementById('quitarCliente');
+  if (clienteId) clienteId.value = pendiente.id;
+  if (buscarCliente) buscarCliente.value = pendiente.name;
+  if (quitarCliente) quitarCliente.hidden = false;
+
+  let ventaFiada = document.getElementById('ventaFiada');
+  if (ventaFiada && pendiente.fiado !== false) ventaFiada.checked = true;
+}
+
+function configurarSwitchFiado(finalPrice) {
+  let sw = document.getElementById('ventaFiada');
+  let input = document.getElementById('totalRecibido');
+  if (!sw || !input) return;
+
+  let precioCompleto = Number(finalPrice) || 0;
+
+  function aplicarEstado() {
+    let actual = Number(removeCommaSeparators(input.value));
+    if (sw.checked) {
+      if (Math.abs(actual - precioCompleto) < 0.005) input.value = '0';
+    } else {
+      input.value = formatNumber(precioCompleto);
+    }
+  }
+
+  sw.addEventListener('change', aplicarEstado);
+  aplicarEstado();
+}
+
+function crearClienteRapido(modo) {
+  popup.open({
+    title: "Crear Cliente Nuevo",
+    content: `
+      <form onsubmit="return enviarClienteRapido(this, '${modo || 'normal'}')">
+        <label>Nombre *</label>
+        <input type="text" class="form-control" required>
+        <label>Documento</label>
+        <input type="text" class="form-control" autocomplete="off">
+        <label>Teléfono</label>
+        <input type="text" class="form-control" autocomplete="off">
+        <br>
+        <button class="btn btn-outline-primary d-block w-100"><i class="fa-solid fa-user-plus"></i> Crear y usar en venta</button>
+      </form>
+    `
+  });
+}
+
+function enviarClienteRapido(e, modo) {
+  let client = {
+    name: e[0].value,
+    type: 'cc',
+    document: e[1].value || '',
+    phone: e[2].value || ''
+  };
+  let token = sessionStorage.getItem('acape-session');
+
+  socket.emit('createClient', { client: client, token: token });
+
+  socket.once('createClient', (data) => {
+    if (!data.data) return Toast.fire({
+      text: data.message,
+      icon: "error"
+    });
+
+    Toast.fire({
+      title: "Cliente creado",
+      text: "Ya puedes fiarlo en la venta.",
+      icon: "success"
+    });
+
+    sessionStorage.removeItem('clients-lite');
+    window._nuevoClientePendiente = { id: data.data.id, name: data.data.name };
+
+    if (modo === 'mayor') facturacionMayor();
+    else facturacion();
+  });
+
+  return false;
 }
 
 function facturacionMayor() {
@@ -1613,38 +1729,48 @@ function facturacionMayor() {
   let array_methods = converterArray(methods);
 
   getClientesVenta((clientesVenta) => {
-    popup.open({
-      title: "Venta Por Mayor",
-      content: `
-      <form onsubmit="return sendCreateVenta(this, true, ${finalPrice}, event)">
-        <label htmlFor="">Metodos De Pago</label>
-        <select name="" value="efectivo" class="form-select">
-          <option value="efectivo">efectivo</option>
-          ${array_methods.map(ch => `<option value="${ch.name}">${ch.name}</option>`).join('')}
-        </select>
-        <label>Total Recibido</label>
-        <input type="text" class="form-control numberify-input-commas" value="${formatNumber(finalPrice)}">
-        <div class="buscador-cliente">
-          <input type="hidden" id="clienteId" value="">
-          <label>Cliente (opcional)</label>
-          <input type="text" id="buscarCliente" class="form-control" autocomplete="off" placeholder="Buscar por nombre o número de identidad">
-          <div id="resultadosCliente" class="buscador-cliente-resultados" hidden></div>
-          <button type="button" id="quitarCliente" class="btn btn-light btn-sm mt-1" hidden><i class="fa-solid fa-xmark"></i> Quitar cliente</button>
-        </div>
-        <div class="actual-venta">
-          ${finalProducts}
-          <hr>
-        </div>
-        <br><br>
-        <div class="precio-final"><h5>Total a pagar: $ ${formatNumber(finalPrice)}</h5></div>
+      popup.open({
+        title: "Venta Por Mayor",
+        content: `
+        <form onsubmit="return sendCreateVenta(this, true, ${finalPrice}, event)">
+          <label htmlFor="">Metodos De Pago</label>
+          <select name="" value="efectivo" class="form-select">
+            <option value="efectivo">efectivo</option>
+            ${array_methods.map(ch => `<option value="${ch.name}">${ch.name}</option>`).join('')}
+          </select>
+          <label>Total Recibido</label>
+          <input type="text" id="totalRecibido" class="form-control numberify-input-commas" value="${formatNumber(finalPrice)}">
+          <div class="buscador-cliente">
+            <input type="hidden" id="clienteId" value="">
+            <label>Cliente (opcional)</label>
+            <input type="text" id="buscarCliente" class="form-control" autocomplete="off" placeholder="Buscar por nombre o número de identidad">
+            <div id="resultadosCliente" class="buscador-cliente-resultados" hidden></div>
+            <button type="button" id="quitarCliente" class="btn btn-light btn-sm mt-1" hidden><i class="fa-solid fa-xmark"></i> Quitar cliente</button>
+          </div>
+          <div class="form-check form-switch mt-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="ventaFiada" value="1">
+            <label class="form-check-label" for="ventaFiada"><i class="fa-solid fa-file-invoice-dollar"></i> Venta fiada (a crédito)</label>
+            <div class="form-text" id="hintVentaFiada">Al activarlo, el monto no recibido queda como deuda del cliente.</div>
+          </div>
+          <div class="mt-2">
+            <button type="button" class="btn btn-outline-info btn-sm" onclick="crearClienteRapido('mayor')"><i class="fa-solid fa-user-plus"></i> Crear cliente nuevo</button>
+          </div>
+          <div class="actual-venta">
+            ${finalProducts}
+            <hr>
+          </div>
+          <br><br>
+          <div class="precio-final"><h5>Total a pagar: $ ${formatNumber(finalPrice)}</h5></div>
 
-        <button id="btnFinalizarVentaMayor" class="btn btn-block btn-outline-primary"><i class="fa-solid fa-floppy-disk"></i> Finalizar</button>
-      </form>
-    `
-    });
-    activarBuscadorCliente(clientesVenta, { focusOnSelect: 'btnFinalizarVentaMayor' });
-    let btnFinalizarMayor = document.getElementById('btnFinalizarVentaMayor');
-    if (btnFinalizarMayor) btnFinalizarMayor.focus();
+          <button id="btnFinalizarVentaMayor" class="btn btn-block btn-outline-primary"><i class="fa-solid fa-floppy-disk"></i> Finalizar</button>
+        </form>
+      `
+      });
+      activarBuscadorCliente(clientesVenta, { focusOnSelect: 'btnFinalizarVentaMayor' });
+      autoSeleccionarClienteNuevo();
+      configurarSwitchFiado(finalPrice);
+      let btnFinalizarMayor = document.getElementById('btnFinalizarVentaMayor');
+      if (btnFinalizarMayor) btnFinalizarMayor.focus();
   });
 }
 
@@ -3420,6 +3546,10 @@ function escapeHtmlImportar(texto) {
   return String(texto || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function escapeHtml(texto) {
+  return escapeHtmlImportar(texto);
+}
+
 function previewImportarClientes() {
   let cont = document.querySelector('#vistaPreviaImportar');
   if (!cont) return;
@@ -3638,7 +3768,8 @@ function reciboVentaHTML(venta) {
   let configs = !localStorage.getItem('configs') ? {} : JSON.parse(localStorage.getItem('configs'));
   let productos = converterArray(venta.products || []);
   let fecha = new Date(venta.date || Date.now());
-  let pagodigital = venta.digital ? 'Transferencia > ' + venta.digital : 'Efectivo > De Contado';
+  let aCredito = Number(venta.recibido || 0) < Number(venta.total_pago || 0);
+  let pagodigital = venta.digital ? 'Transferencia > ' + venta.digital : (aCredito ? 'A crédito (fiado)' : 'Efectivo > De Contado');
   let numero = (venta.id != null) ? generarNumeroFactura(venta.id) + '  &nbsp;' : '';
 
   return `
@@ -3682,9 +3813,15 @@ function reciboVentaHTML(venta) {
     <div class="ft-line">
       <span>RECIBIDO</span><span class="ft-val">${ftMoney(venta.recibido)}</span>
     </div>
+    ${aCredito ? `
+    <div class="ft-line">
+      <span>DEUDA</span><span class="ft-val">${ftMoney(Number(venta.total_pago || 0) - Number(venta.recibido || 0))}</span>
+    </div>
+    ` : `
     <div class="ft-line">
       <span>CAMBIO</span><span class="ft-val">${ftMoney(Number(venta.recibido || 0) - Number(venta.total_pago || 0))}</span>
     </div>
+    `}
 
     <div class="ft-separador"></div>
     <div class="ft-footer">${configs.footer ? configs.footer : ""}</div>
@@ -4882,27 +5019,6 @@ function sendCreateEntrada(e, mayor, finalPrice) {
 }
 
 
-function deleteDeudor(id) {
-  let token = sessionStorage.getItem('acape-session');
-
-  socket.emit('removeDeudor', { id: id, token: token });
-  socket.once('removeDeudor', (data) => {
-    if (!data.data) return Toast.fire({
-      text: data.message,
-      icon: "error"
-    });
-
-    listingDeudores();
-
-    Toast.fire({
-      title: "Deudor eliminado satisfactoriamente",
-      text: "Recuerda que el eliminarlo no tendra efecto en caja.",
-      icon: "success"
-    })
-    popup.start();
-  })
-}
-
 function makePrestamo(id) {
   let token = sessionStorage.getItem('acape-session');
   let valor = document.querySelector('.data-input-deudor-movements').value;
@@ -4972,7 +5088,7 @@ function makePago(id) {
     listingDeudores();
     createIngreso({
       money: data.movement.monto,
-      description: `Prestamo > ${data.movement.desc}`,
+      description: `Pago de deuda > ${data.movement.desc}`,
       date: new Date()
     }, data.movement.monto)
   })
@@ -4989,22 +5105,39 @@ function editDeudor(id) {
     let deudor = data.data[id];
 
     if (!deudor) return Toast.fire({
-      text: "No se encontro este deudor, actualiza la pagina.",
+      text: "No se encontro este cliente con deuda, actualiza la pagina.",
       icon: "error"
     });
+
+    let movimientos = converterArray(deudor.movements || []).reverse().slice(0, 15).map(m => `
+      <tr>
+        <td>${formatNumber(m.monto)}</td>
+        <td>${m.sign == "-" ? '<span class="text-danger">Prestamo / Fiado</span>' : '<span class="text-success">Pago</span>'}</td>
+        <td>${m.desc || ""}</td>
+        <td class="small">${m.date ? new Date(m.date).toLocaleDateString() : ""}</td>
+      </tr>
+    `).join('');
+
     popup.open({
-      title: "Editando Deudor",
+      title: "Editando Cliente Deudor",
       content: `
-        <p>${id} - ${deudor.name}</p>
+        <p><b>${deudor.name}</b> ${deudor.document ? `| ${deudor.document}` : ""}</p>
+        <p><b>Deuda actual:</b> ${formatNumber(deudor.deuda)}</p>
         <label>Dinero de movimiento</label>
         <input type="text" class="form-control numberify-input-commas data-input-deudor-movements" placeholder="0">
         <label htmlFor="">Descripción</label>
-        <textarea name="" id="" class="form-control data-textarea-deudor-desc" placeholder="Ejem: Prestamo para compras"></textarea>
+        <textarea class="form-control data-textarea-deudor-desc" placeholder="Ejem: Pago de venta fiada"></textarea>
         <br>
         <button class="btn btn-outline-danger" onclick="makePrestamo('${id}')"><i class="fa-solid fa-money-bill"></i> Prestamo</button>
         <button class="btn btn-outline-primary" onclick="makePago('${id}')"><i class="fa-solid fa-receipt"></i> Pago de deuda</button>
         <hr>
-        <button class="btn btn-danger w-100 d-block" onclick="deleteDeudor('${deudor.id}')"><i class="fa-solid fa-trash"></i> Eliminar Deudor</button>
+        <h6>Ultimos movimientos</h6>
+        <div style="max-height:220px; overflow-y:auto;">
+          <table class="table table-sm">
+            <thead><tr><th>Monto</th><th>Tipo</th><th>Desc</th><th>Fecha</th></tr></thead>
+            <tbody>${movimientos || '<tr><td colspan="4" class="text-center text-muted">Sin movimientos</td></tr>'}</tbody>
+          </table>
+        </div>
       `
     })
   })
@@ -5013,75 +5146,163 @@ function editDeudor(id) {
 function listingDeudores() {
   socket.emit('getDeudores', { token: sessionStorage.getItem('acape-session') });
 
-  let final_html = "";
-
   socket.once('getDeudores', (data) => {
     if (!data.data) return Toast.fire({
       text: "Ocurrio un error en la solicitud de datos.",
       icon: "error"
     });
 
-    let all_deudores = converterArray(data.data);
-    let finalDeuda = 0;
+    window._deudoresLista = converterArray(data.data);
+    poblarFiltrosDeudores();
+    renderDeudores();
+  })
+}
 
-    document.querySelector('.tbody-deudores').innerHTML = all_deudores.map(ch => {
-      finalDeuda = finalDeuda + Number(ch.deuda)
+function valoresUnicosDeudores(campo) {
+  let valores = {};
+  (window._deudoresLista || []).forEach(ch => {
+    let v = String(ch[campo] || '').trim();
+    if (v) valores[v] = true;
+  });
+  return Object.keys(valores).sort((a, b) => a.localeCompare(b));
+}
 
-      return `<tr>
+function poblarFiltrosDeudores() {
+  let selCat = document.getElementById('filtroDeudoresCategoria');
+  let selPro = document.getElementById('filtroDeudoresProviene');
+  if (selCat) selCat.innerHTML = '<option value="">Categoría: todas</option>' + valoresUnicosDeudores('categoria').map(v => `<option value="${escapeHtml(v)}">${v}</option>`).join('');
+  if (selPro) selPro.innerHTML = '<option value="">Proviene de: todos</option>' + valoresUnicosDeudores('proviene').map(v => `<option value="${escapeHtml(v)}">${v}</option>`).join('');
+}
+
+function deudoresFiltrados() {
+  let cat = document.getElementById('filtroDeudoresCategoria');
+  let pro = document.getElementById('filtroDeudoresProviene');
+  let fCat = cat ? cat.value : '';
+  let fPro = pro ? pro.value : '';
+  return (window._deudoresLista || []).filter(ch => {
+    if (fCat && String(ch.categoria || '') !== fCat) return false;
+    if (fPro && String(ch.proviene || '') !== fPro) return false;
+    return true;
+  });
+}
+
+function renderDeudores() {
+  let tbody = document.querySelector('.tbody-deudores');
+  if (!tbody) return;
+
+  let lista = deudoresFiltrados();
+  let finalDeuda = 0;
+
+  tbody.innerHTML = lista.map(ch => {
+    finalDeuda = finalDeuda + Number(ch.deuda);
+
+    return `<tr>
       <td>${ch.id}</td>
       <td>${ch.name}</td>
+      <td>${ch.document || ""}</td>
+      <td>${ch.categoria || ""}</td>
+      <td>${ch.proviene || ""}</td>
       <td>${formatNumber(ch.deuda)}</td>
       <td class="text-center cursor-pointer" onclick="editDeudor('${ch.id}')"><i class="fa-solid fa-pen"></i></td>
     </tr>`
-    }).join('');
+  }).join('');
 
-    document.querySelector('.edit-total-deudores').innerHTML = formatNumber(finalDeuda)
-  })
+  if (!lista.length) tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Sin deudores que coincidan</td></tr>';
+
+  let totalEl = document.querySelector('.edit-total-deudores');
+  if (totalEl) totalEl.innerHTML = formatNumber(finalDeuda);
 }
 
-function sendNewDeudor(e) {
-  let final_data = {
-    deudor: {
-      name: e[0].value,
-      deuda: e[1].value
-    },
-    token: sessionStorage.getItem('acape-session')
+function limpiarFiltrosDeudores() {
+  ['filtroDeudoresCategoria', 'filtroDeudoresProviene'].forEach(id => {
+    let el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  renderDeudores();
+}
+
+function generarExcelDeudores(modo) {
+  if (typeof ExcelJS === 'undefined') {
+    return Toast.fire({ title: "Excel", text: "La librería de Excel no está cargada. Recarga la página (Ctrl+F5).", icon: "error" });
+  }
+  if (!window._deudoresLista || !window._deudoresLista.length) {
+    return Toast.fire({ title: "Excel", text: "No hay deudores para exportar.", icon: "warning" });
   }
 
-  socket.emit('createDeudor', final_data);
-  socket.once('createDeudor', (data) => {
-    if (!data.data) return Toast.fire({
-      text: data.message,
-      icon: "error"
-    });
+  let lista = modo === 'todos' ? window._deudoresLista : deudoresFiltrados();
+  if (!lista.length) return Toast.fire({ title: "Excel", text: "No hay deudores con los filtros seleccionados.", icon: "warning" });
 
+  let cat = document.getElementById('filtroDeudoresCategoria');
+  let pro = document.getElementById('filtroDeudoresProviene');
+  let etiqueta = (modo === 'filtro' && (cat && cat.value || pro && pro.value))
+    ? ' - ' + [cat && cat.value ? 'Cat: ' + cat.value : '', pro && pro.value ? 'Proviene: ' + pro.value : ''].filter(Boolean).join(' / ')
+    : '';
 
-    popup.start();
-    Toast.fire({
-      text: "Deudor nuevo registrado",
-      icon: "success"
-    })
-    listingDeudores();
-  })
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'ACAPE';
+  wb.created = new Date();
 
-  return false;
-}
+  const filas = [
+    ['DEUDORES' + etiqueta],
+    ['Generado el', new Date().toLocaleString()],
+    [],
+    ['ID', 'Nombre', 'Documento', 'Categoría', 'Proviene de', 'Deuda'],
+    ...lista.map(ch => [
+      ch.id,
+      ch.name,
+      ch.document || '',
+      ch.categoria || '',
+      ch.proviene || '',
+      Number(ch.deuda)
+    ]),
+    [],
+    ['TOTAL', '', '', '', '', lista.reduce((acc, ch) => acc + Number(ch.deuda || 0), 0)]
+  ];
 
-function addDeudor(e) {
-  popup.open({
-    title: "Añadir Deudor",
-    content: `
-      <form onsubmit="return sendNewDeudor(this)">
-        <label htmlFor="">Nombre Del Deudor</label>
-        <input type="text" class="form-control" placeholder="EJem: Jhon Doe" required>
-        <label htmlFor="">Deuda Inicial</label>
-        <p>Deja el valor 0 si el deudor es nuevo</p>
-        <input class="form-control" type="number" placeholder="0" value="0">
-        <br>
-        <button class="btn btn-outline-primary d-block w-100" ><i class="fa-solid fa-plus"></i>Crear Nuevo Deudor</button>
-      </form>
-    `
-  })
+  let hoja = wb.addWorksheet('Deudores');
+  hoja.columns = [15, 40, 18, 20, 30, 15];
+  filas.forEach((fila, i) => {
+    const row = hoja.addRow(fila);
+    if (i === 0) {
+      const t = row.getCell(1);
+      t.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+      t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+      t.alignment = { horizontal: 'center', vertical: 'middle' };
+      hoja.mergeCells(1, 1, 1, 6);
+    } else if (i === 3) {
+      row.eachCell((c) => {
+        c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+        c.alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+    } else {
+      const celdaMoneda = row.getCell(6);
+      if (typeof celdaMoneda.value === 'number') {
+        celdaMoneda.numFmt = '#,##0';
+        celdaMoneda.alignment = { horizontal: 'right' };
+      }
+      if (i === filas.length - 1) {
+        row.eachCell((c) => {
+          c.font = { bold: true };
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E2F3' } };
+        });
+      }
+    }
+  });
+  hoja.views = [{ state: 'frozen', ySplit: 4 }];
+
+  const fecha = new Date().toISOString().slice(0, 10);
+  const nombreArchivo = 'Deudores ' + fecha + (etiqueta ? ' (filtrado)' : '') + '.xlsx';
+  wb.xlsx.writeBuffer().then((buffer) => {
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombreArchivo;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  });
 }
 
 router.get('/deudores', () => {
@@ -5092,22 +5313,36 @@ router.get('/deudores', () => {
   return `
     <div class="container-fluid my-2">
       <h1 class="text-center">Deudores</h1>
-      <p class="text-center">Aqui estan todos los deudores registrados</p>
-      <div class="text-center">
-        <button onclick="addDeudor()" class="btn text-center btn-outline-primary"><i class="fa-solid fa-user-plus"></i> Agregar Deudor</button>
+      <p class="text-center">Estos son los clientes que tienen deuda pendiente</p>
+      <div class="text-center d-flex justify-content-center gap-2 flex-wrap mb-3">
+        <a href="#/clientes" class="btn btn-outline-primary"><i class="fa-solid fa-user-plus"></i> Crear Cliente</a>
+        <span class="btn btn-outline-success" onclick="generarExcelDeudores('todos')"><i class="fa-solid fa-file-excel"></i> Excel (todos)</span>
+        <span class="btn btn-outline-success" onclick="generarExcelDeudores('filtro')"><i class="fa-solid fa-file-excel"></i> Excel (filtrados)</span>
       </div>
       <br>
       <div class="container-deudores">
+        <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
+          <select id="filtroDeudoresCategoria" class="form-select" onchange="renderDeudores()" style="max-width:220px">
+            <option value="">Categoría: todas</option>
+          </select>
+          <select id="filtroDeudoresProviene" class="form-select" onchange="renderDeudores()" style="max-width:220px">
+            <option value="">Proviene de: todos</option>
+          </select>
+          <button class="btn btn-outline-secondary" onclick="limpiarFiltrosDeudores()"><i class="fa-solid fa-rotate-left"></i> Limpiar</button>
+        </div>
         <table class="table-products">
           <thead>
             <tr>
               <th>ID</th>
               <th>Nombre</th>
+              <th>Documento</th>
+              <th>Categoría</th>
+              <th>Proviene de</th>
               <th>Deuda</th>
               <th>Editar</th>
             </tr>
           </thead>
-          <tbody class="tbody-deudores">  
+          <tbody class="tbody-deudores">
           </tbody>
         </table>
 

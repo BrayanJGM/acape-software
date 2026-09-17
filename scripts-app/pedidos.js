@@ -174,6 +174,7 @@ const popup = new alerter('.alerter');
 popup.start()
 
 function converterArray(object) {
+  if (!object) return [];
   let keys = Object.keys(object);
   let arrayToReturn = [];
 

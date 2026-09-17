@@ -18,8 +18,8 @@ function generarRutasYDatos(datos, rutaActual = '') {
         const resultadosInternos = generarRutasYDatos(valor, rutaNueva);
         resultados.push(...resultadosInternos);
       } else {
-        // Si es un valor simple (string o número), añadir a los resultados
-        if (typeof valor === 'string' || typeof valor === 'number') {
+        // Si es un valor simple (string, número o booleano), añadir a los resultados
+        if (typeof valor === 'string' || typeof valor === 'number' || typeof valor === 'boolean') {
           resultados.push({ route: rutaNueva, data: valor });
         }
       }

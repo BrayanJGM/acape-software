@@ -62,6 +62,7 @@ function formatNumber(number) {
 // CONVERTIR CUALQUIER OBJETO EN UN ARREGLO 
 
 function converterArray(object){
+	if(!object) return [];
 	let keys = Object.keys(object);
 	let arrayToReturn = [];
 	
@@ -649,119 +650,67 @@ class Database {
 
 	// OPTIMIZADA
 	getDeudores(token){
-		let validateUser = this.validatePerms(token, 'facturar');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
-
-		return {message: "Info deudores", data: this.db.getData('/data/simple/deudores')};
+		return this.getClientesConDeuda(token);
 	}
 
-
-
-	// ---------------------------------------------------------------------------------------
-	// -> POR ACTUALIZAR >
-	// ---------------------------------------------------------------------------------------
-	createDeudor(data = {}, token){
-		if(!data) return {message: "Tienes que agregar la información del deudor"};
-		if(!token) return {message: "Tienes que agregar el token del usuario"};
-		if(!data.name) return {message: "Tienes que agregarle nombre al deudor"};
-
-		let validateUser = this.validatePerms(token, 'facturar');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
-
-		let deudores = this.db.getData('/data/simple/deudores');
-
-		let ids = this.db.getData('/data/simple/id');
-		let id_deudores = ids.deudores?ids.deudores:0;
-
-		let array_deudores = converterArray(deudores);
-
-		let finding_deudor = array_deudores.find(ch => ch.name == data.name);
-		if(finding_deudor) return {message: "Este nombre ya esta registrado como deudor"};
-
-		id_deudores = id_deudores + 1;
-		ids.deudores = id_deudores;
-		let finalDeudor = {
-			name: data.name,
-			deuda: data.deuda?data.deuda:0,
-			id: ids.deudores,
-			cuenta_abierta: new Date(),
-			movements: {}
-		};
-
-		this.db.setData(`/data/simple/deudores/${finalDeudor.id}`, finalDeudor);
-		this.db.setData('/data/simple/id/deudores', ids.deudores);
-
-		return {message: "Deudor agregado satisfactoriamente", data: finalDeudor};
-	}
-
+	// AÑADIR DEUDA A UN CLIENTE: incrementa la deuda y registra el movimiento
 	addDeuda(id, deuda = {}, token){
-		if(!id) return {message: "Tienes que poner el id del deudor"};
+		if(!id) return {message: "Tienes que poner el id del cliente"};
 		if(!deuda.monto) return {message: "Tienes que poner el valor de la deuda"};
 		if(!deuda.desc) return {message: "Tienes que poner la descripcion de la deuda"};
 		
 		let validateUser = this.validatePerms(token, 'facturar');
 		if(!validateUser) return {message: "El usuario parece no tener permisos"};		
 
-		let deudores = this.db.getData('/data/simple/deudores');
+		let clientes = this.db.getData('/data/simple/clientes');
 
-		let finding_deudor = deudores[id];
-		if(!finding_deudor) return {message: "Este deudor no existe"};
+		let finding_client = clientes[id];
+		if(!finding_client) return {message: "Este cliente no existe"};
 
-		deudores[id].deuda = Number(deudores[id].deuda) + Number(deuda.monto);
+		clientes[id].deuda = Number(clientes[id].deuda ? clientes[id].deuda : 0) + Number(deuda.monto);
+		if(!clientes[id].cuenta_abierta) clientes[id].cuenta_abierta = new Date();
 
-		let settings_data = converterArray(deudores[id].movements?deudores[id].movements:{});
+		let settings_data = converterArray(clientes[id].movements?clientes[id].movements:{});
 		deuda.date = new Date().toString();
 		deuda.sign = "-";
 		settings_data.push(deuda);
 
-		deudores[id].movements = settings_data;
+		clientes[id].movements = settings_data;
 
-		this.db.setData('/data/simple/deudores', deudores);
+		this.db.setData('/data/simple/clientes', clientes);
 
-		return {message: "Deuda añadida exitosamente.", data: deudores[id], movement: deuda};
+		return {message: "Deuda añadida exitosamente.", data: clientes[id], movement: deuda};
 	}
 
+	// PAGAR DEUDA DE UN CLIENTE: disminuye la deuda y registra el movimiento
 	removeDeuda(id, deuda = {}, token){
-		if(!id) return {message: "Tienes que poner el id del deudor"};
+		if(!id) return {message: "Tienes que poner el id del cliente"};
 		if(!deuda.monto) return {message: "Tienes que poner el valor de la deuda"};
 		if(!deuda.desc) return {message: "Tienes que poner la descripcion de la deuda"};
 		
 		let validateUser = this.validatePerms(token, 'facturar');
 		if(!validateUser) return {message: "El usuario parece no tener permisos"};		
 
-		let deudores = this.db.getData('/data/simple/deudores');
+		let clientes = this.db.getData('/data/simple/clientes');
 
-		let finding_deudor = deudores[id];
-		if(!finding_deudor) return {message: "Este deudor no existe"};
+		let finding_client = clientes[id];
+		if(!finding_client) return {message: "Este cliente no existe"};
 
-		deudores[id].deuda = Number(deudores[id].deuda) - Number(deuda.monto);
+		let deudaActual = Number(clientes[id].deuda ? clientes[id].deuda : 0);
+		let nuevoValor = deudaActual - Number(deuda.monto);
+		if(nuevoValor < 0) nuevoValor = 0;
+
+		clientes[id].deuda = nuevoValor;
 		deuda.sign = "+"
 
-		let settings_data = converterArray(deudores[id].movements?deudores[id].movements:{});
+		let settings_data = converterArray(clientes[id].movements?clientes[id].movements:{});
 		settings_data.push(deuda);
 
-		deudores[id].movements = settings_data;
+		clientes[id].movements = settings_data;
 
-		this.db.setData('/data/simple/deudores', deudores);
+		this.db.setData('/data/simple/clientes', clientes);
 
-		return {message: "Deuda removida exitosamente.", data: deudores[id], movement: deuda};
-	}
-
-	deleteDeudor(id, token){
-		if(!id) return {message: "Tienes que poner el id del deudor."};
-		if(!token) return {message: "Añade el token del usuario."};
-
-		let validateUser = this.validatePerms(token, 'all');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
-
-		let deudores = this.db.getData('/data/simple/deudores');
-
-		let finding_deudor = deudores[id];
-		if(!finding_deudor) return {message: "Este deudor no existe"};
-
-		this.db.removeData(`/data/simple/deudores/${id}`);
-
-		return {message: "Deudor eliminado satisfactoriamente", data: finding_deudor};
+		return {message: "Deuda removida exitosamente.", data: clientes[id], movement: deuda};
 	}
 
 	// ----------------------------------------------------------------------------
@@ -1424,7 +1373,7 @@ class Database {
 
 	// OPTIMIZADA
 	// NO NECESITA ELIMINARSE LA LINEA CANTIDADSOLICITADA
-	createVenta(ventas = [], total_recibido = 0, token, mayor, digital, clientId) {
+	createVenta(ventas = [], total_recibido = 0, token, mayor, digital, clientId, deudorId) {
 	  if (!ventas[0]) return { message: "Añade productos para concretar la venta." };
 
 	  total_recibido = redondearMoneda(removeCommaSeparators(String(total_recibido == null ? 0 : total_recibido))) || 0;
@@ -1485,7 +1434,8 @@ class Database {
 	    final_count = redondearMoneda(final_count + final_product.precio_final);
 	  });
 
-	  if (final_count - total_recibido > 0.005) {
+	  // Si no hay deudor, el pago debe cubrir el total
+	  if (!deudorId && final_count - total_recibido > 0.005) {
 	    return { message: "El total recibido no puede ser menor al total pago." };
 	  }
 
@@ -1494,26 +1444,28 @@ class Database {
 	  let final_venta = {
 	    products: final_data,
 	    productsNone: products_dont,
-	    recibido: total_recibido || final_count,
-	    total_pago: final_count,
-	    id: ids.ventas,
-	    date: new Date() - 0,
-	    ventaHechaPor: token || "Cajero Común",
-	    mayor: mayor,
-	    digital: digital
-	  };
+recibido: total_recibido == null ? final_count : redondearMoneda(total_recibido),
+    total_pago: final_count,
+    id: ids.ventas,
+    date: new Date() - 0,
+    ventaHechaPor: token || "Cajero Común",
+    mayor: mayor,
+    digital: digital
+  };
 
-final_venta.vueltas = redondearMoneda(final_venta.recibido - final_venta.total_pago);
+final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_venta.total_pago));
 
   this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
   this.db.setData('/data/simple/id', ids);
 
-  // VINCULACION CON CLIENTE: registra la compra en el historial del cliente
-  if (clientId) {
+  // VINCULACION CON CLIENTE / DEUDOR: registra la compra y/o la deuda fiada
+  let vinculoId = clientId || deudorId;
+  if (vinculoId) {
     try {
       let clientes = this.db.getData('/data/simple/clientes');
       let findingClient = clientes[clientId];
-      if (findingClient) {
+
+      if (findingClient && clientId) {
         final_venta.clienteId = clientId;
         final_venta.cliente = findingClient.name;
         findingClient.compras = converterArray(findingClient.compras || []);
@@ -1527,10 +1479,38 @@ final_venta.vueltas = redondearMoneda(final_venta.recibido - final_venta.total_p
             total: p.precio_final
           }))
         });
+      }
+
+      // VENTA A CREDITO (fiado): la diferencia se registra como deuda del deudor
+      let deudaPendiente = redondearMoneda(final_venta.total_pago - final_venta.recibido);
+      if (deudorId && deudaPendiente > 0.005) {
+        let clienteDeudor = clientes[deudorId];
+        if (clienteDeudor) {
+          clienteDeudor.deuda = Number(clienteDeudor.deuda ? clienteDeudor.deuda : 0) + deudaPendiente;
+          if(!clienteDeudor.cuenta_abierta) clienteDeudor.cuenta_abierta = new Date();
+          clienteDeudor.movements = converterArray(clienteDeudor.movements || []);
+          clienteDeudor.movements.push({
+            monto: deudaPendiente,
+            desc: `Venta fiada #${final_venta.id}`,
+            date: new Date().toString(),
+            sign: "-",
+            ventaId: final_venta.id
+          });
+        }
+      }
+
+      if (findingClient || deudorId) {
         this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
         this.db.setData('/data/simple/clientes', clientes);
       }
     } catch (err) {}
+  }
+
+  // MARCA LA VENTA COMO FIADA PARA REFERENCIA EN REPORTES
+  if (deudorId) {
+    final_venta.deudorId = deudorId;
+    final_venta.fiado = true;
+    this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
   }
 
   return { message: "Venta hecha satisfactoriamente", data: final_venta };
@@ -1612,6 +1592,9 @@ final_venta.vueltas = redondearMoneda(final_venta.recibido - final_venta.total_p
 			categoria: data.categoria != null ? String(data.categoria).trim() : "",
 			proviene: data.proviene != null ? String(data.proviene).trim() : "",
 			compras: [],
+			deuda: 0,
+			movements: [],
+			cuenta_abierta: null,
 			id: ids.clientes
 		}
 		clients[ids.clientes] = final_client;
@@ -1669,6 +1652,9 @@ final_venta.vueltas = redondearMoneda(final_venta.recibido - final_venta.total_p
 				categoria: item.categoria != null ? String(item.categoria).trim() : "",
 				proviene: item.proviene != null ? String(item.proviene).trim() : "",
 				compras: [],
+				deuda: 0,
+				movements: [],
+				cuenta_abierta: null,
 				id: ids.clientes
 			};
 			clients[ids.clientes] = final_client;
@@ -1740,7 +1726,8 @@ final_venta.vueltas = redondearMoneda(final_venta.recibido - final_venta.total_p
 			livianos[ch.id] = {
 				id: ch.id,
 				name: ch.name != null ? ch.name : '',
-				document: ch.document != null ? ch.document : ''
+				document: ch.document != null ? ch.document : '',
+				deuda: Number(ch.deuda ? ch.deuda : 0)
 			};
 		});
 		return {message: "Lista de clientes", data: livianos};
@@ -1751,6 +1738,32 @@ final_venta.vueltas = redondearMoneda(final_venta.recibido - final_venta.total_p
 		if(!validateUser) return {message: "No tiene permisos suficientes."};
 		let clientes = this.db.getData('/data/simple/clientes', ['compras']);
 		return {message: "Lista de clientes", data: clientes};
+	}
+
+	// CLIENTES CON DEUDA: devuelve unicamente los clientes que deben (deuda > 0)
+	getClientesConDeuda(token){
+		let validateUser = this.validatePerms(token, 'facturar');
+		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+
+		let clientes = this.db.getData('/data/simple/clientes');
+		let array_clientes = converterArray(clientes);
+
+		let deudores = {};
+		array_clientes.forEach(ch => {
+			if(Number(ch.deuda ? ch.deuda : 0) > 0){
+				deudores[ch.id] = {
+					id: ch.id,
+					name: ch.name,
+					document: ch.document,
+					categoria: ch.categoria || "",
+					proviene: ch.proviene || "",
+					deuda: Number(ch.deuda),
+					movements: ch.movements || []
+				};
+			}
+		});
+
+		return {message: "Info deudores", data: deudores};
 	}
 
 	// HISTORIAL DE COMPRAS DE UN CLIENTE: ventas vinculadas, total acumulado

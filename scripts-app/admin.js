@@ -151,6 +151,7 @@ const popup = new alerter('.alerter');
 popup.start()
 
 function converterArray(object) {
+  if (!object) return [];
   let keys = Object.keys(object);
   let arrayToReturn = [];
 
@@ -447,6 +448,7 @@ router.get('/wallets', () => {
 
 
 function converterArray(object) {
+  if (!object) return [];
   let keys = Object.keys(object);
   let arrayToReturn = [];
 
@@ -2513,42 +2515,48 @@ router.get('/registros', async () => {
   `;
 });
 
-function addDeudor(e) {
+function crearClienteAdministrador() {
   popup.open({
-    title: "Añadir Deudor",
+    title: "Crear Cliente",
     content: `
-      <form onsubmit="return sendNewDeudor(this)">
-        <label htmlFor="">Nombre Del Deudor</label>
-        <input type="text" class="form-control" placeholder="EJem: Jhon Doe" required>
-        <label htmlFor="">Deuda Inicial</label>
-        <p>Deja el valor 0 si el deudor es nuevo</p>
-        <input class="form-control numberify-input-commas" type="text" placeholder="0" value="0">
+      <form onsubmit="return enviarClienteAdministrador(this)">
+        <label htmlFor="">Nombre Del Cliente</label>
+        <input type="text" class="form-control" placeholder="Ejem: Jhon Doe" required>
+        <label htmlFor="">Documento</label>
+        <input type="text" class="form-control" placeholder="Opcional">
+        <label htmlFor="">Teléfono</label>
+        <input type="text" class="form-control" placeholder="Opcional">
         <br>
-        <button class="btn btn-outline-primary d-block w-100" ><i class="fa-solid fa-plus"></i>Crear Nuevo Deudor</button>
+        <button class="btn btn-outline-primary d-block w-100" ><i class="fa-solid fa-user-plus"></i>Crear Cliente</button>
       </form>
     `
   })
 }
 
-function deleteDeudor(id) {
-  let token = localStorage.getItem('admin-acape-session');
+function enviarClienteAdministrador(e) {
+  let client = {
+    name: e[0].value,
+    type: 'cc',
+    document: e[1].value || '',
+    phone: e[2].value || ''
+  };
 
-  socket.emit('removeDeudor', { id: id, token: token });
-  socket.once('removeDeudor', (data) => {
+  socket.emit('createClient', { client: client, token: localStorage.getItem('admin-acape-session') });
+  socket.once('createClient', (data) => {
     if (!data.data) return Toast.fire({
       text: data.message,
       icon: "error"
     });
 
-    listingDeudores();
-
+    popup.start();
     Toast.fire({
-      title: "Deudor eliminado satisfactoriamente",
-      text: "Recuerda que el eliminarlo no tendra efecto en caja.",
+      text: "Cliente creado satisfactoriamente",
       icon: "success"
     })
-    popup.start();
+    listingDeudores();
   })
+
+  return false;
 }
 
 function makePrestamo(id) {
@@ -2626,22 +2634,39 @@ function editDeudor(id) {
     let deudor = data.data[id];
 
     if (!deudor) return Toast.fire({
-      text: "No se encontro este deudor, actualiza la pagina.",
+      text: "No se encontro este cliente con deuda, actualiza la pagina.",
       icon: "error"
     });
+
+    let movimientos = converterArray(deudor.movements || []).reverse().slice(0, 15).map(m => `
+      <tr>
+        <td>${formatNumber(m.monto)}</td>
+        <td>${m.sign == "-" ? '<span class="text-danger">Prestamo / Fiado</span>' : '<span class="text-success">Pago</span>'}</td>
+        <td>${m.desc || ""}</td>
+        <td class="small">${m.date ? new Date(m.date).toLocaleDateString() : ""}</td>
+      </tr>
+    `).join('');
+
     popup.open({
-      title: "Editando Deudor",
+      title: "Editando Cliente Deudor",
       content: `
-        <p>${id} - ${deudor.name}</p>
+        <p><b>${deudor.name}</b> ${deudor.document ? `| ${deudor.document}` : ""}</p>
+        <p><b>Deuda actual:</b> ${formatNumber(deudor.deuda)}</p>
         <label>Dinero de movimiento</label>
         <input type="text" class="form-control numberify-input-commas data-input-deudor-movements" placeholder="0">
         <label htmlFor="">Descripción</label>
-        <textarea name="" id="" class="form-control data-textarea-deudor-desc" placeholder="Ejem: Prestamo para compras"></textarea>
+        <textarea class="form-control data-textarea-deudor-desc" placeholder="Ejem: Pago de venta fiada"></textarea>
         <br>
         <button class="btn btn-outline-danger" onclick="makePrestamo('${id}')"><i class="fa-solid fa-money-bill"></i> Prestamo</button>
         <button class="btn btn-outline-primary" onclick="makePago('${id}')"><i class="fa-solid fa-receipt"></i> Pago de deuda</button>
         <hr>
-        <button class="btn btn-danger w-100 d-block" onclick="deleteDeudor('${deudor.id}')"><i class="fa-solid fa-trash"></i> Eliminar Deudor</button>
+        <h6>Ultimos movimientos</h6>
+        <div style="max-height:220px; overflow-y:auto;">
+          <table class="table table-sm">
+            <thead><tr><th>Monto</th><th>Tipo</th><th>Desc</th><th>Fecha</th></tr></thead>
+            <tbody>${movimientos || '<tr><td colspan="4" class="text-center text-muted">Sin movimientos</td></tr>'}</tbody>
+          </table>
+        </div>
       `
     })
   })
@@ -2649,8 +2674,6 @@ function editDeudor(id) {
 
 function listingDeudores() {
   socket.emit('getDeudores', { token: localStorage.getItem('admin-acape-session') });
-
-  let final_html = "";
 
   socket.once('getDeudores', (data) => {
     if (!data.data) return Toast.fire({
@@ -2661,47 +2684,24 @@ function listingDeudores() {
     let all_deudores = converterArray(data.data);
     let finalDeuda = 0;
 
-    document.querySelector('.tbody-deudores').innerHTML = all_deudores.map(ch => {
+    let tbody = document.querySelector('.tbody-deudores');
+    if (!tbody) return;
+
+    tbody.innerHTML = all_deudores.map(ch => {
       finalDeuda = finalDeuda + Number(ch.deuda)
 
       return `<tr>
       <td>${ch.id}</td>
       <td>${ch.name}</td>
+      <td>${ch.document || ""}</td>
       <td>${formatNumber(ch.deuda)}</td>
       <td class="text-center cursor-pointer" onclick="editDeudor('${ch.id}')"><i class="fa-solid fa-pen"></i></td>
     </tr>`
     }).join('');
 
-    document.querySelector('.edit-total-deudores').innerHTML = formatNumber(finalDeuda)
+    let totalEl = document.querySelector('.edit-total-deudores');
+    if (totalEl) totalEl.innerHTML = formatNumber(finalDeuda);
   })
-}
-
-function sendNewDeudor(e) {
-  let final_data = {
-    deudor: {
-      name: e[0].value,
-      deuda: removeCommaSeparators(e[1].value)
-    },
-    token: localStorage.getItem('admin-acape-session')
-  }
-
-  socket.emit('createDeudor', final_data);
-  socket.once('createDeudor', (data) => {
-    if (!data.data) return Toast.fire({
-      text: data.message,
-      icon: "error"
-    });
-
-
-    popup.start();
-    Toast.fire({
-      text: "Deudor nuevo registrado",
-      icon: "success"
-    })
-    listingDeudores();
-  })
-
-  return false;
 }
 
 function setServicesSubmit(e) {
@@ -2792,9 +2792,9 @@ router.get('/deudores', async () => {
   return `
     <div class="container-fluid my-2">
       <h1 class="text-center">Deudores</h1>
-      <p class="text-center">Registro de deudas, deudores y movimientos</p>
+      <p class="text-center">Clientes que tienen deuda pendiente</p>
       <div class="text-center">
-        <button onclick="addDeudor()" class="btn text-center btn-outline-primary"><i class="fa-solid fa-user-plus"></i> Agregar Deudor</button>
+        <button onclick="crearClienteAdministrador()" class="btn text-center btn-outline-primary"><i class="fa-solid fa-user-plus"></i> Crear Cliente</button>
       </div>
       <br>
       <div class="container-deudores">
@@ -2803,6 +2803,7 @@ router.get('/deudores', async () => {
             <tr>
               <th>ID</th>
               <th>Nombre</th>
+              <th>Documento</th>
               <th>Deuda</th>
               <th>Editar</th>
             </tr>
