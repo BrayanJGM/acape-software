@@ -5260,7 +5260,7 @@ function generarExcelDeudores(modo) {
   ];
 
   let hoja = wb.addWorksheet('Deudores');
-  hoja.columns = [15, 40, 18, 20, 30, 15];
+  hoja.columns = [10, 60, 26, 28, 38, 18];
   filas.forEach((fila, i) => {
     const row = hoja.addRow(fila);
     if (i === 0) {
