@@ -1348,7 +1348,9 @@ class Database {
 				}
 			}
 			
-			final_product.precio_final = redondearMoneda(final_product.precio_unitario * final_product.cantidad);
+			final_product.precio_final = element.precio_final != null
+				? redondearMoneda(element.precio_final)
+				: redondearMoneda(final_product.precio_unitario * final_product.cantidad);
 
 			final_data.push(final_product)			
 			final_count = final_count + final_product.precio_final;

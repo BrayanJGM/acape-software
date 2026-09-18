@@ -299,6 +299,20 @@ function redondearMoneda(numero) {
   return Math.round(Number(numero) * 100) / 100;
 }
 
+// REDONDEA UN MONTO A PESOS ENTEROS (COLOMBIA NO USA CENTAVOS): el valor escrito
+// a mano en "precio final" se respeta tal cual; esto aplica al calculo derivado.
+function redondearPeso(numero) {
+  return Math.round(Number(numero));
+}
+
+// MONTO DEFINITIVO DE UNA LINEA DE VENTA: el "precio final" escrito a mano es la autoridad;
+// si no se escribio, se calcula precio*total y se redondea a pesos enteros.
+function importeLinea(ch, mayorVenta = false) {
+  if (ch.precio_final != null) return Number(ch.precio_final) || 0;
+  let base = mayorVenta ? (ch.price_mayor != null ? ch.price_mayor : ch.price) : ch.price;
+  return redondearPeso(ch.cantidad ? (Number(base) * Number(ch.cantidad)) : Number(base));
+}
+
 document.addEventListener('input', function(e) {
   if (e.target.classList.contains('numberify-input-commas')) {
     addCommaSeparators(e.target);
@@ -633,6 +647,7 @@ function setListProduct(data, desdePesaje = false) {
       if (element.name == findingProduct2.name) {
         element.cantidad = element.cantidad ? element.cantidad : 0;
         element.cantidad = element.cantidad + 1;
+        delete element.precio_final;
         array[i] = element;
         sessionStorage.setItem('actually-list-products', JSON.stringify(array));
       }
@@ -854,7 +869,7 @@ function pesajePopupTick() {
     elPeso.innerHTML = `${actual} kg`;
     if (elTotal) {
       let precio = Number(_pesajePopupProducto && _pesajePopupProducto.price || 0);
-      elTotal.innerHTML = `Total: $ ${formatNumber(actual * precio)}`;
+      elTotal.innerHTML = `Total: $ ${formatNumber(redondearPeso(actual * precio))}`;
     }
 
     if (data.estable) {
@@ -879,7 +894,12 @@ function aplicarPesaje(id, peso, modo) {
     setListProduct(id, true);
     list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
   }
-  list.forEach((el) => { if (el.id == id) el.cantidad = peso; });
+  list.forEach((el) => {
+    if (el.id == id) {
+      el.cantidad = peso;
+      delete el.precio_final;
+    }
+  });
   sessionStorage.setItem('actually-list-products', JSON.stringify(list));
   listingProducts();
 }
@@ -899,7 +919,7 @@ function confirmarPesajeRapido() {
   enfocarBuscador();
 
   if (product) {
-    let precioFinal = Number(product.price || 0) * peso;
+    let precioFinal = redondearPeso(Number(product.price || 0) * peso);
     Toast.fire({ text: `${product.name} · ${peso} kg → $ ${formatNumber(precioFinal)}`, icon: "success" });
   }
 }
@@ -1134,6 +1154,7 @@ function changeCantidad(id, e) {
     if (element.id == id) {
       if (!array[i].stock) {
         array[i].cantidad = e.value ? e.value : 1;
+        delete array[i].precio_final;
         sessionStorage.setItem('actually-list-products', JSON.stringify(array));
         actualizarLinea(id, { setFinal: true });
         return;
@@ -1145,6 +1166,7 @@ function changeCantidad(id, e) {
       });
 
       array[i].cantidad = e.value ? e.value : 1;
+      delete array[i].precio_final;
       sessionStorage.setItem('actually-list-products', JSON.stringify(array));
       actualizarLinea(id, { setFinal: true });
     }
@@ -1160,7 +1182,7 @@ function listingProducts() {
   // xd
   let finalPrice = 0;
   let final_html = array_productsList.map(ch => {
-    finalPrice = redondearMoneda(finalPrice + Number(ch.cantidad ? (ch.price * (ch.cantidad ? ch.cantidad : 0)) : ch.price));
+    finalPrice = finalPrice + importeLinea(ch);
     return `<tr>
         <td>${ch.id}</td>
         <td>${ch.name}</td>
@@ -1174,7 +1196,7 @@ function listingProducts() {
           ${esDePeso(ch) ? `<button class="btn btn-outline-info btn-sm" onclick="pesarProducto('${ch.id}')"><i class="fa-solid fa-weight-scale"></i> Pesar</button>` : ""}
         </td>
         <td class="non-padding">
-          <input class="line-final-${ch.id} numberify-input-commas" oninput="return changeImporteLinea('${ch.id}', this)" type="text" value="${formatNumber(redondearMoneda(ch.cantidad?(ch.price*(ch.cantidad?ch.cantidad:0)):ch.price))}">
+          <input class="line-final-${ch.id} numberify-input-commas" oninput="return changeImporteLinea('${ch.id}', this)" type="text" value="${formatNumber(importeLinea(ch))}">
         </td>
         <td class="text-center cursor-pointer" onclick="deleteList('${ch.id}')">x</td>
       </tr>`
@@ -1192,7 +1214,7 @@ function listingProducts() {
 // RECALCULA EL TOTAL DE LA VENTA A PARTIR DE LA LISTA GUARDADA
 function actualizarTotalVenta() {
   let list = JSON.parse(sessionStorage.getItem('actually-list-products') || "[]");
-  let total = redondearMoneda(list.reduce((acc, ch) => acc + Number(ch.cantidad ? (ch.price * ch.cantidad) : ch.price), 0));
+  let total = list.reduce((acc, ch) => acc + importeLinea(ch), 0);
   let el = document.querySelector('.edit-total');
   if (el) el.innerHTML = `$ ${formatNumber(total)}`;
 }
@@ -1204,7 +1226,7 @@ function actualizarLinea(id, opciones = {}) {
   if (!it) return;
 
   if (opciones.setFinal) {
-    let final = redondearMoneda(it.cantidad ? (Number(it.price) * Number(it.cantidad)) : Number(it.price));
+    let final = importeLinea(it);
     let input = document.querySelector(`.line-final-${id}`);
     if (input) input.value = formatNumber(final);
   }
@@ -1229,6 +1251,7 @@ function changePrecioLinea(id, e) {
   if (!it) return false;
   it.price = parsePrecioInput(e.value);
   if (it.price_mayor != null) it.price_mayor = it.price;
+  delete it.precio_final;
   sessionStorage.setItem('actually-list-products', JSON.stringify(list));
   actualizarLinea(id, { setFinal: true });
   return false;
@@ -1243,6 +1266,7 @@ function changeImporteLinea(id, e) {
   if (precio <= 0) return false;
   let importe = parsePrecioInput(e.value);
   it.cantidad = Math.round((importe / precio) * 1000) / 1000;
+  it.precio_final = importe;
   sessionStorage.setItem('actually-list-products', JSON.stringify(list));
   actualizarLinea(id, { setCantidad: true });
   return false;
@@ -1330,18 +1354,9 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
   let finalToPay = 0;
 
   actuallyList.flatMap(ch => {
-    let simplifiedPay = 0;
-
     ch.cantidad = ch.cantidad ? ch.cantidad : 1;
-
-    if (mayor) {
-      simplifiedPay = redondearMoneda(ch.price_mayor ? (ch.price_mayor * ch.cantidad) : ch.price * ch.cantidad);
-    } else {
-      simplifiedPay = redondearMoneda(ch.price * ch.cantidad);
-    }
-
-    finalToPay = redondearMoneda(finalToPay + simplifiedPay);
-    return simplifiedPay;
+    finalToPay = finalToPay + importeLinea(ch, mayor);
+    return importeLinea(ch, mayor);
   });
 
   let haySaldoPendiente = finalToPay - data.total_recibido > 0.005;
@@ -1568,9 +1583,9 @@ function facturacion() {
   let finalPrice = 0;
 
   let finalProducts = finalList.map(ch => {
-    finalPrice = redondearMoneda(finalPrice + Number(ch.cantidad ? (ch.price * ch.cantidad) : ch.price));
+    finalPrice = finalPrice + importeLinea(ch);
 
-    return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price)} | Precio Final: ${formatNumber(ch.cantidad?(ch.price * ch.cantidad):ch.price)}</div>`;
+    return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price)} | Precio Final: ${formatNumber(importeLinea(ch))}</div>`;
   }).join('');
 
   let methods = sessionStorage.getItem('methods') ? JSON.parse(sessionStorage.getItem('methods')) : {};
@@ -1723,9 +1738,9 @@ function facturacionMayor() {
   let finalPrice = 0;
 
   let finalProducts = finalList.map(ch => {
-    finalPrice = redondearMoneda(finalPrice + Number(ch.cantidad ? ((ch.price_mayor ? ch.price_mayor : ch.price) * ch.cantidad) : (ch.price_mayor ? ch.price_mayor : ch.price)));
+    finalPrice = finalPrice + importeLinea(ch, true);
 
-    return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price_mayor?ch.price_mayor:ch.price + ' (Este producto no tiene precio por mayor)')} | Precio Final: ${formatNumber(Number(ch.cantidad?((ch.price_mayor?ch.price_mayor:ch.price) * ch.cantidad):(ch.price_mayor?ch.price_mayor:ch.price)))}</div>`;
+    return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price_mayor?ch.price_mayor:ch.price + ' (Este producto no tiene precio por mayor)')} | Precio Final: ${formatNumber(importeLinea(ch, true))}</div>`;
   }).join('')
 
   let methods = sessionStorage.getItem('methods') ? JSON.parse(sessionStorage.getItem('methods')) : {};
@@ -4263,7 +4278,7 @@ function confirmarPedido(id) {
     let productsList = converterArray(data.data.products?data.data.products:{});
     let total_pago = 0;
 
-    productsList.map(ch => total_pago = total_pago + (ch.price * ch.cantidad));
+    productsList.map(ch => total_pago = total_pago + importeLinea(ch));
 
     let fulldata = data.data;
     let configs = localStorage.getItem('configs') ? JSON.parse(localStorage.getItem('configs')) : {};
@@ -4271,7 +4286,7 @@ function confirmarPedido(id) {
       title: `Pedido sin confirmar - ${id}`,
       content: `
         <div class="all-content-pedido">
-          ${productsList.map(ch => `<p>${ch.name} - ${formatNumber(ch.price)} x ${ch.cantidad} = ${formatNumber(ch.price*ch.cantidad)}</p>`).join('')}
+          ${productsList.map(ch => `<p>${ch.name} - ${formatNumber(ch.price)} x ${ch.cantidad} = ${formatNumber(importeLinea(ch))}</p>`).join('')}
           <span><b>Total A Pagar: </b> ${formatNumber(total_pago)}</span><br>
 
           <form onsubmit="return sendConfirmPedido(this, ${id})">
@@ -4377,13 +4392,13 @@ function openCreatePedido(mayor) {
 
   let finalProducts = finalProductList.map(ch => {
     if (mayor) {
-      finalPrice = redondearMoneda(finalPrice + Number(ch.cantidad ? ((ch.price_mayor ? ch.price_mayor : ch.price) * ch.cantidad) : (ch.price_mayor ? ch.price_mayor : ch.price)));
+      finalPrice = finalPrice + importeLinea(ch, true);
 
-      return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price_mayor?ch.price_mayor:ch.price + ' (Este producto no tiene precio por mayor)')} | Precio Final: ${formatNumber(Number(ch.cantidad?((ch.price_mayor?ch.price_mayor:ch.price) * ch.cantidad):(ch.price_mayor?ch.price_mayor:ch.price)))}</div>`;
+      return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price_mayor?ch.price_mayor:ch.price + ' (Este producto no tiene precio por mayor)')} | Precio Final: ${formatNumber(importeLinea(ch, true))}</div>`;
     } else {
-      finalPrice = redondearMoneda(finalPrice + Number(ch.cantidad ? (ch.price * ch.cantidad) : ch.price));
+      finalPrice = finalPrice + importeLinea(ch);
 
-      return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price)} | Precio Final: ${formatNumber(ch.cantidad?(ch.price * ch.cantidad):ch.price)}</div>`;
+      return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price)} | Precio Final: ${formatNumber(importeLinea(ch))}</div>`;
     }
   }).join('')
 
