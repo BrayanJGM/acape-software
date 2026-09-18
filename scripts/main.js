@@ -5682,44 +5682,117 @@ function exportarExcelVentasClientes() {
     });
     aoa.push(['TOTAL', ...cols.map(c => tot[c.id])]);
 
-    let hoja = wb.addWorksheet('Ventas');
-    hoja.columns = [{ width: 6 }, ...cols.map(c => ({ width: c.width }))];
-
-    aoa.forEach((fila, i) => {
-      const row = hoja.addRow(fila);
-      if (i === 0) {
-        const t = row.getCell(1);
-        t.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
-        t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
-        t.alignment = { horizontal: 'center', vertical: 'middle' };
-        hoja.mergeCells(1, 1, 1, numCols + 1);
-      } else if (i === 5) {
-        row.eachCell((c) => {
-          c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
-          c.alignment = { horizontal: 'center', vertical: 'middle' };
-        });
-      } else {
-        colsDinero.forEach((cin) => {
-          const celda = row.getCell(cin);
-          if (typeof celda.value === 'number') {
-            celda.numFmt = '#,##0';
-            celda.alignment = { horizontal: 'right' };
-          }
-        });
-        if (i === aoa.length - 1) {
+    function estilizarHoja(hoja, aoa) {
+      aoa.forEach((fila, i) => {
+        const row = hoja.addRow(fila);
+        if (i === 0) {
+          const t = row.getCell(1);
+          t.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+          t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+          t.alignment = { horizontal: 'center', vertical: 'middle' };
+          hoja.mergeCells(1, 1, 1, numCols + 1);
+        } else if (i === 5) {
           row.eachCell((c) => {
-            if (c.value !== undefined && c.value !== '') {
-              c.font = { bold: true };
-              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E2F3' } };
+            c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+            c.alignment = { horizontal: 'center', vertical: 'middle' };
+          });
+        } else {
+          colsDinero.forEach((cin) => {
+            const celda = row.getCell(cin);
+            if (typeof celda.value === 'number') {
+              celda.numFmt = '#,##0';
+              celda.alignment = { horizontal: 'right' };
             }
           });
+          if (i === aoa.length - 1) {
+            row.eachCell((c) => {
+              if (c.value !== undefined && c.value !== '') {
+                c.font = { bold: true };
+                c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E2F3' } };
+              }
+            });
+          }
         }
+      });
+      let idxProductos = cols.findIndex(c => c.id === 'productos');
+      if (idxProductos !== -1) hoja.getColumn(idxProductos + 2).alignment = { wrapText: true };
+      hoja.views = [{ state: 'frozen', ySplit: 6 }];
+    }
+
+    let hoja = wb.addWorksheet('Ventas');
+    hoja.columns = [{ width: 6 }, ...cols.map(c => ({ width: c.width }))];
+    estilizarHoja(hoja, aoa);
+
+    let grupos = {};
+    ventas.forEach((v) => {
+      let cid = (v.clienteId != null && String(v.clienteId) !== '') ? v.clienteId
+        : ((v.deudorId != null && String(v.deudorId) !== '') ? v.deudorId : null);
+      let key = cid == null ? 'cf' : ('id:' + cid);
+      let g = grupos[key] || (grupos[key] = { key, cid, nombre: '', doc: '', fecha: 0, n: 0, unidades: 0, recibido: 0, total: 0 });
+      g.n++;
+      let unidades = 0;
+      productosDeVenta(v).forEach(p => { unidades += lineaProducto(p).cantidad; });
+      g.unidades += unidades;
+      g.recibido += recibidoVenta(v);
+      g.total += totalVenta(v);
+      let d = Number(v.date || 0);
+      if (d > g.fecha) g.fecha = d;
+    });
+    let garr = Object.values(grupos);
+    garr.forEach(g => {
+      if (g.cid == null) {
+        g.nombre = 'Consumidor Final';
+      } else {
+        g.nombre = clienteVenta({ clienteId: g.cid, deudorId: g.cid });
+        g.doc = documentoCliente({ clienteId: g.cid, deudorId: g.cid });
       }
     });
-    let idxProductos = cols.findIndex(c => c.id === 'productos');
-    if (idxProductos !== -1) hoja.getColumn(idxProductos + 2).alignment = { wrapText: true };
-    hoja.views = [{ state: 'frozen', ySplit: 6 }];
+    garr.sort((a, b) => (b.total - a.total) || (b.recibido - a.recibido));
+
+    let totalUnidades = 0, totalRecibido = 0, totalTotal = 0;
+    let aoaTotales = [
+      ['TOTALES POR CLIENTE' + etiquetaFiltro],
+      ['Rango de fechas', desde + ' a ' + hasta],
+      ['Generado el', new Date().toLocaleString()],
+      ['Clientes en rango', garr.length],
+      [],
+      ['#', ...cols.map(c => c.label)]
+    ];
+    garr.forEach((g, i) => {
+      let cambio = g.recibido - g.total;
+      totalUnidades += g.unidades;
+      totalRecibido += g.recibido;
+      totalTotal += g.total;
+      let val = {};
+      cols.forEach(c => {
+        val[c.id] = c.id === 'cliente' ? g.nombre
+          : c.id === 'documento' ? g.doc
+          : c.id === 'fecha' ? (g.fecha ? new Date(g.fecha).toLocaleString() : '')
+          : c.id === 'tipo' ? ''
+          : c.id === 'productos' ? ''
+          : c.id === 'unidades' ? Math.round(g.unidades * 1000) / 1000
+          : c.id === 'recibido' ? g.recibido
+          : c.id === 'total' ? g.total
+          : c.id === 'cambio' ? (Math.abs(cambio) < 0.005 ? '---' : cambio)
+          : '';
+      });
+      aoaTotales.push([i + 1, ...cols.map(c => val[c.id])]);
+    });
+    let cambioTotalTotal = totalRecibido - totalTotal;
+    let totG = {};
+    cols.forEach(c => {
+      totG[c.id] = c.id === 'unidades' ? Math.round(totalUnidades * 1000) / 1000
+        : c.id === 'recibido' ? totalRecibido
+        : c.id === 'total' ? totalTotal
+        : c.id === 'cambio' ? (Math.abs(cambioTotalTotal) < 0.005 ? '---' : cambioTotalTotal)
+        : '';
+    });
+    aoaTotales.push(['TOTAL', ...cols.map(c => totG[c.id])]);
+
+    let hojaTotales = wb.addWorksheet('Totales');
+    hojaTotales.columns = [{ width: 6 }, ...cols.map(c => ({ width: c.width }))];
+    estilizarHoja(hojaTotales, aoaTotales);
 
     const nombreArchivo = 'Ventas ' + desde + ' a ' + hasta + (etiquetaFiltro ? ' (filtrado)' : '') + '.xlsx';
     wb.xlsx.writeBuffer().then((buffer) => {
