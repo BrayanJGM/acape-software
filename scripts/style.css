@@ -305,6 +305,10 @@ label {
 	z-index: 3000;
 	border-radius: 8px;
 }
+.popup-lg {
+	width: 780px;
+	max-width: 95vw;
+}
 .closePopup {
 	font-weight: 1000;
 	font-size: 20px;

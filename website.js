@@ -1195,7 +1195,7 @@ router.post('/createVenta', (req, res) => {
   if (data.total_recibido === undefined || data.total_recibido === null || data.total_recibido === '') return res.json({ message: "Agrega el total recibido por parte del cliente." });
   if (!data.token) return res.json({ message: "Agrega el token para registrar la venta con tu usuario." });
 
-  let venta_creada = database.createVenta(data.venta, Number(removeCommaSeparators(String(data.total_recibido))), data.token, data.mayor, null, data.clientId, data.deudorId);
+  let venta_creada = database.createVenta(data.venta, Number(removeCommaSeparators(String(data.total_recibido))), data.token, data.mayor, null, data.clientId, data.deudorId, data.date);
 
   if(venta_creada.data){
     ventasCount += 1;
@@ -1225,7 +1225,7 @@ router.post('/createVentaDigital', (req, res) => {
   let method = database.method(data.type);
   if(!method.data) return res.json(method);
 
-  let creatingVenta = database.createVenta(data.venta, Number(removeCommaSeparators(String(data.total_recibido))), data.token, data.mayor, method.data.name, data.clientId, data.deudorId);
+  let creatingVenta = database.createVenta(data.venta, Number(removeCommaSeparators(String(data.total_recibido))), data.token, data.mayor, method.data.name, data.clientId, data.deudorId, data.date);
   if(!creatingVenta.data) return res.json(creatingVenta);
 
   database.addToGeneral({
@@ -1267,6 +1267,16 @@ router.post('/deleteVentaEdit', (req, res) => {
   let dataToSend = database.deleteVenta(data.venta);
   dataToSend.return = false;
   return res.json(dataToSend);
+})
+
+router.post('/editVentaDate', (req, res) => {
+  const data = req.body;
+
+  if (!data.id) return res.json({ message: "Agrega el id de la venta." });
+  if (!data.date) return res.json({ message: "Agrega la nueva fecha de la venta." });
+  if (!data.token) return res.json({ message: "Agrega el token para autorizar la operación." });
+
+  return res.json(database.editVentaDate(data.id, data.date, data.token));
 })
 
 

@@ -1373,7 +1373,7 @@ class Database {
 
 	// OPTIMIZADA
 	// NO NECESITA ELIMINARSE LA LINEA CANTIDADSOLICITADA
-	createVenta(ventas = [], total_recibido = 0, token, mayor, digital, clientId, deudorId) {
+	createVenta(ventas = [], total_recibido = 0, token, mayor, digital, clientId, deudorId, date) {
 	  if (!ventas[0]) return { message: "Añade productos para concretar la venta." };
 
 	  total_recibido = redondearMoneda(removeCommaSeparators(String(total_recibido == null ? 0 : total_recibido))) || 0;
@@ -1441,13 +1441,15 @@ class Database {
 
 	  ids.ventas += 1;
 
+	  let fechaVenta = date ? (new Date(date) - 0) : new Date() - 0;
+
 	  let final_venta = {
 	    products: final_data,
 	    productsNone: products_dont,
 recibido: total_recibido == null ? final_count : redondearMoneda(total_recibido),
     total_pago: final_count,
     id: ids.ventas,
-    date: new Date() - 0,
+    date: fechaVenta,
     ventaHechaPor: token || "Cajero Común",
     mayor: mayor,
     digital: digital
@@ -1471,7 +1473,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
         findingClient.compras = converterArray(findingClient.compras || []);
         findingClient.compras.push({
           ventaId: final_venta.id,
-          fecha: final_venta.date,
+          fecha: fechaVenta,
           total: final_venta.total_pago,
           productos: final_data.map(p => ({
             nombre: p.name,
@@ -1492,7 +1494,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
           clienteDeudor.movements.push({
             monto: deudaPendiente,
             desc: `Venta fiada #${final_venta.id}`,
-            date: new Date().toString(),
+            date: new Date(fechaVenta).toString(),
             sign: "-",
             ventaId: final_venta.id
           });
@@ -1529,6 +1531,58 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		this.db.removeData(`/data/simple/ventas/${findingVenta.id}`, findingVenta);
 
 		return this.createVenta(data.ventas, total_recibido);
+	}
+
+	// CAMBIA LA FECHA DE UNA VENTA YA CONCRETADA y la sincroniza
+	// en las compras del cliente y en el movimiento de deuda fiada.
+	editVentaDate(id, fecha, token){
+		if(!id) return {message: "Tienes que indicar el id de la venta"};
+		if(!fecha) return {message: "Tienes que indicar la nueva fecha de la venta"};
+
+		let validateUser = this.validatePerms(token, 'facturar');
+		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+
+		let findingVenta = this.db.initData(`/data/simple/ventas/${id}`);
+		if(!findingVenta) return {message: "Esta venta no existe o no fue concretada"};
+
+		let nuevaFecha = new Date(fecha) - 0;
+		if(isNaN(nuevaFecha)) return {message: "La fecha indicada es invalida"};
+
+		findingVenta.date = nuevaFecha;
+		this.db.setData(`/data/simple/ventas/${findingVenta.id}`, findingVenta);
+
+		let clienteId = findingVenta.clienteId || findingVenta.deudorId;
+		if(clienteId){
+			try {
+				let clientes = this.db.getData('/data/simple/clientes');
+				let cliente = clientes[clienteId];
+				if(cliente){
+					let changed = false;
+
+					let compras = converterArray(cliente.compras || []);
+					compras.forEach(c => {
+						if(String(c.ventaId) === String(findingVenta.id)){
+							c.fecha = nuevaFecha;
+							changed = true;
+						}
+					});
+					cliente.compras = compras;
+
+					let movements = converterArray(cliente.movements || []);
+					movements.forEach(m => {
+						if(String(m.ventaId) === String(findingVenta.id)){
+							m.date = new Date(nuevaFecha).toString();
+							changed = true;
+						}
+					});
+					cliente.movements = movements;
+
+					if(changed) this.db.setData('/data/simple/clientes', clientes);
+				}
+			} catch (err) {}
+		}
+
+		return {message: "Fecha de la venta actualizada exitosamente", data: findingVenta};
 	}
 
 	// OPTIMIZADA

@@ -1316,6 +1316,7 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
   let esFiado = !!fiadoSwitch && fiadoSwitch.checked;
   let clienteIdEl = document.getElementById('clienteId');
   let clienteId = clienteIdEl && clienteIdEl.value ? clienteIdEl.value : null;
+  let fechaVentaInput = document.getElementById('fechaVenta');
   let data = {
     venta: actuallyList,
     total_recibido: Number(removeCommaSeparators(e[1].value)),
@@ -1323,7 +1324,7 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
     mayor: mayor,
     type: e[0].value,
     clientId: clienteId,
-    date: new Date() - 0
+    date: fechaVentaInput && fechaVentaInput.value ? (new Date(fechaVentaInput.value + 'T00:00:00') - 0) : (new Date() - 0)
   };
 
   let finalToPay = 0;
@@ -1587,6 +1588,8 @@ function facturacion() {
           </select>
           <label>Total Recibido</label>
           <input type="text" id="totalRecibido" class="form-control numberify-input-commas" value="${formatNumber(finalPrice)}">
+          <label>Fecha de venta</label>
+          <input type="date" id="fechaVenta" class="form-control" value="${fechaInputValue(new Date())}">
           <div class="buscador-cliente">
             <input type="hidden" id="clienteId" value="">
             <label>Cliente (opcional)</label>
@@ -1740,6 +1743,8 @@ function facturacionMayor() {
           </select>
           <label>Total Recibido</label>
           <input type="text" id="totalRecibido" class="form-control numberify-input-commas" value="${formatNumber(finalPrice)}">
+          <label>Fecha de venta</label>
+          <input type="date" id="fechaVenta" class="form-control" value="${fechaInputValue(new Date())}">
           <div class="buscador-cliente">
             <input type="hidden" id="clienteId" value="">
             <label>Cliente (opcional)</label>
@@ -4046,6 +4051,15 @@ function formatDate(final) {
   return `${day}/${month}/${year}`;
 }
 
+function fechaInputValue(final) {
+  const date = new Date(final);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+
+  return `${year}-${month}-${day}`;
+}
+
 function fnformat(final) {
   const date = new Date(final);
   const day = date.getUTCDate();
@@ -5109,15 +5123,6 @@ function editDeudor(id) {
       icon: "error"
     });
 
-    let movimientos = converterArray(deudor.movements || []).reverse().slice(0, 15).map(m => `
-      <tr>
-        <td>${formatNumber(m.monto)}</td>
-        <td>${m.sign == "-" ? '<span class="text-danger">Prestamo / Fiado</span>' : '<span class="text-success">Pago</span>'}</td>
-        <td>${m.desc || ""}</td>
-        <td class="small">${m.date ? new Date(m.date).toLocaleDateString() : ""}</td>
-      </tr>
-    `).join('');
-
     popup.open({
       title: "Editando Cliente Deudor",
       content: `
@@ -5131,15 +5136,84 @@ function editDeudor(id) {
         <button class="btn btn-outline-danger" onclick="makePrestamo('${id}')"><i class="fa-solid fa-money-bill"></i> Prestamo</button>
         <button class="btn btn-outline-primary" onclick="makePago('${id}')"><i class="fa-solid fa-receipt"></i> Pago de deuda</button>
         <hr>
-        <h6>Ultimos movimientos</h6>
-        <div style="max-height:220px; overflow-y:auto;">
-          <table class="table table-sm">
+        <h6>Movimientos y ventas</h6>
+        <div style="max-height:420px; overflow-y:auto;">
+          <table class="table table-sm table-striped">
             <thead><tr><th>Monto</th><th>Tipo</th><th>Desc</th><th>Fecha</th></tr></thead>
-            <tbody>${movimientos || '<tr><td colspan="4" class="text-center text-muted">Sin movimientos</td></tr>'}</tbody>
+            <tbody id="tbodyDeudorMovimientos"><tr><td colspan="4" class="text-center text-muted">Cargando...</td></tr></tbody>
           </table>
         </div>
       `
+    });
+
+    let popupEl = document.querySelector('.alerter .popup');
+    if (popupEl) popupEl.classList.add('popup-lg');
+
+    socket.emit('getComprasCliente', { id: id, token: sessionStorage.getItem('acape-session') });
+    socket.once('getComprasCliente', (res) => {
+      let tbody = document.getElementById('tbodyDeudorMovimientos');
+      if (!tbody) return;
+
+      let compras = converterArray(res.data && res.data.compras ? res.data.compras : []);
+      let movs = converterArray(deudor.movements || []);
+
+      let ventasFiadas = {};
+      movs.forEach(m => {
+        if (m.sign == "-" && m.ventaId != null) ventasFiadas[m.ventaId] = true;
+      });
+
+      let filas = [];
+
+      compras.forEach(c => {
+        let fiada = ventasFiadas[c.ventaId];
+        filas.push({
+          fecha: Number(c.fecha || 0),
+          ventaId: c.ventaId,
+          html: `
+            <tr>
+              <td>${formatNumber(c.total)}</td>
+              <td>${fiada ? '<span class="text-danger">Venta fiada</span>' : '<span class="text-primary">Venta</span>'}</td>
+              <td class="small">${(c.productos || []).map(p => p.nombre + ' x' + p.cantidad).join('<br>') || ('Venta #' + c.ventaId)}</td>
+              <td><input type="date" class="form-control form-control-sm" value="${fechaInputValue(new Date(c.fecha || 0))}" onchange="guardarFechaVenta(this, ${c.ventaId})"></td>
+            </tr>
+          `
+        });
+      });
+
+      movs.forEach(m => {
+        if (m.sign == "+" || m.ventaId == null) {
+          filas.push({
+            fecha: m.date ? new Date(m.date) - 0 : 0,
+            ventaId: null,
+            html: `
+              <tr>
+                <td>${formatNumber(m.monto)}</td>
+                <td><span class="text-success">Pago</span></td>
+                <td class="small">${m.desc || ""}</td>
+                <td class="small">${m.date ? new Date(m.date).toLocaleDateString() : ""}</td>
+              </tr>
+            `
+          });
+        }
+      });
+
+      filas.sort((a, b) => (b.fecha || 0) - (a.fecha || 0));
+
+      tbody.innerHTML = filas.length
+        ? filas.map(f => f.html).join('')
+        : '<tr><td colspan="4" class="text-center text-muted">Sin movimientos</td></tr>';
     })
+  })
+}
+
+function guardarFechaVenta(input, ventaId) {
+  if (!input || !input.value) return Toast.fire({ text: "Indica una fecha valida.", icon: "warning" });
+
+  let fecha = new Date(input.value + 'T00:00:00') - 0;
+
+  socket.emit('editVentaDate', { id: ventaId, date: fecha, token: sessionStorage.getItem('acape-session') });
+  socket.once('editVentaDate', (data) => {
+    Toast.fire({ text: data.message, icon: data.data ? "success" : "error" });
   })
 }
 
