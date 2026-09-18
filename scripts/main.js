@@ -3146,6 +3146,7 @@ function reloadClientes() {
     window._clientesPagina = converterArray(data.data).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
     let inputBusqueda = document.querySelector('#buscarClientePagina');
     renderTablaClientes(inputBusqueda && inputBusqueda.value ? inputBusqueda.value : '');
+    poblarFiltrosVentasClientes();
   })
 }
 
@@ -3669,6 +3670,19 @@ router.get('/clientes', () => {
       <div class="text-center">
         <button class="btn btn-outline-primary" onclick="createClient()">Nuevo Cliente</button>
         <button class="btn btn-outline-primary" onclick="importarClientes()">Importar Clientes</button>
+      </div>
+      <div class="d-flex flex-wrap gap-2 my-3 align-items-center justify-content-center">
+        <label class="small text-muted">Desde:</label>
+        <input type="date" id="filtroVentasDesde" class="form-control" style="max-width:170px">
+        <label class="small text-muted">Hasta:</label>
+        <input type="date" id="filtroVentasHasta" class="form-control" style="max-width:170px">
+        <select id="filtroVentasCategoria" class="form-select" style="max-width:200px">
+          <option value="">Categoría: todas</option>
+        </select>
+        <select id="filtroVentasProviene" class="form-select" style="max-width:200px">
+          <option value="">Proviene de: todos</option>
+        </select>
+        <button class="btn btn-outline-success" onclick="exportarExcelVentasClientes()"><i class="fa-solid fa-file-excel"></i> Excel Ventas</button>
       </div>
       <div class="my-3">
         <input type="text" id="buscarClientePagina" class="form-control" autocomplete="off" placeholder="Buscar cliente por nombre o documento..." oninput="filtrarClientesPagina(this.value)">
@@ -5425,6 +5439,200 @@ function generarExcelDeudores(modo) {
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  });
+}
+
+// LLENA LOS FILTROS DE CATEGORIA / PROVIENE PARA EL EXCEL DE VENTAS (ZONA DE CLIENTES)
+function poblarFiltrosVentasClientes() {
+  let selCat = document.getElementById('filtroVentasCategoria');
+  let selPro = document.getElementById('filtroVentasProviene');
+  if (selCat) selCat.innerHTML = '<option value="">Categoría: todas</option>' + valoresUnicosClientes('categoria').map(v => `<option value="${escapeHtml(v)}">${v}</option>`).join('');
+  if (selPro) selPro.innerHTML = '<option value="">Proviene de: todos</option>' + valoresUnicosClientes('proviene').map(v => `<option value="${escapeHtml(v)}">${v}</option>`).join('');
+}
+
+function valoresUnicosClientes(campo) {
+  let valores = {};
+  (window._clientesPagina || []).forEach(ch => {
+    let v = String(ch[campo] || '').trim();
+    if (v) valores[v] = true;
+  });
+  return Object.keys(valores).sort((a, b) => a.localeCompare(b));
+}
+
+// DESCARGA UN EXCEL CON LAS VENTAS FILTRADAS POR RANGO DE FECHAS Y POR CLIENTE (CATEGORIA/PROVIENE)
+function exportarExcelVentasClientes() {
+  if (typeof ExcelJS === 'undefined') {
+    return Toast.fire({ title: "Excel", text: "La librería de Excel no está cargada. Recarga la página (Ctrl+F5).", icon: "error" });
+  }
+
+  let desdeEl = document.getElementById('filtroVentasDesde');
+  let hastaEl = document.getElementById('filtroVentasHasta');
+  let catEl = document.getElementById('filtroVentasCategoria');
+  let proEl = document.getElementById('filtroVentasProviene');
+
+  let desde = desdeEl ? desdeEl.value : '';
+  let hasta = hastaEl ? hastaEl.value : '';
+  if (!desde || !hasta) {
+    return Toast.fire({ title: "Excel Ventas", text: "Selecciona el rango de fechas (Desde y Hasta).", icon: "warning" });
+  }
+
+  let fCat = (catEl && catEl.value) ? catEl.value : '';
+  let fPro = (proEl && proEl.value) ? proEl.value : '';
+
+  if ((fCat || fPro) && (!window._clientesPagina || !window._clientesPagina.length)) {
+    return Toast.fire({ title: "Excel Ventas", text: "Aún no se cargan los clientes; recarga la página e intenta de nuevo.", icon: "warning" });
+  }
+
+  let desdeMs = new Date(desde + 'T00:00:00') - 0;
+  let hastaMs = new Date(hasta + 'T23:59:59.999') - 0;
+
+  let mapaClientes = {};
+  (window._clientesPagina || []).forEach(c => { mapaClientes[c.id] = c; });
+
+  let etiquetaFiltro = (fCat || fPro)
+    ? ' - ' + [fCat ? 'Cat: ' + fCat : '', fPro ? 'Proviene: ' + fPro : ''].filter(Boolean).join(' / ')
+    : '';
+
+  if (typeof socket === 'undefined' || !socket.emit) {
+    return Toast.fire({ title: "Excel Ventas", text: "La conexión no está activa; recarga la página.", icon: "error" });
+  }
+
+  socket.emit('getAllVentas', { token: sessionStorage.getItem('acape-session') });
+  socket.once('getAllVentas', (data) => {
+    if (!data.data) return Toast.fire({ title: "Excel Ventas", text: data.message || "No se pudieron cargar las ventas.", icon: "error" });
+
+    let ventas = converterArray(data.data).filter(v => {
+      let d = Number(v.date || 0);
+      if (d && d < desdeMs) return false;
+      if (d && d > hastaMs) return false;
+      if (fCat || fPro) {
+        let c = mapaClientes[v.clienteId || v.deudorId];
+        if (!c) return false;
+        if (fCat && String(c.categoria || '') !== fCat) return false;
+        if (fPro && String(c.proviene || '') !== fPro) return false;
+      }
+      return true;
+    }).sort((a, b) => Number(a.date || 0) - Number(b.date || 0));
+
+    if (!ventas.length) return Toast.fire({ title: "Excel Ventas", text: "No hay ventas con los filtros seleccionados.", icon: "warning" });
+
+    function productosDeVenta(v) {
+      let arr = Array.isArray(v.products) ? v.products
+        : (v.products && typeof v.products === 'object') ? v.products
+        : Array.isArray(v.venta) ? v.venta
+        : (v.venta && typeof v.venta === 'object') ? v.venta
+        : [];
+      return converterArray(arr);
+    }
+    function lineaProducto(p) {
+      let cantidad = Number(p.cantidad != null ? p.cantidad : (p.quantity || 1));
+      let unit = Number(p.precio_unitario != null ? p.precio_unitario : (p.price || 0));
+      let total = Number(p.precio_final != null ? p.precio_final : (unit * cantidad));
+      return { name: p.name || ('Producto #' + (p.id || '')), cantidad, unit, total };
+    }
+    function totalVenta(v) {
+      if (v.total_pago != null) return Number(v.total_pago);
+      let suma = 0;
+      productosDeVenta(v).forEach(p => { suma += lineaProducto(p).total; });
+      return suma;
+    }
+    function recibidoVenta(v) {
+      if (v.recibido != null) return Number(v.recibido);
+      if (v.total_recibido != null) return Number(v.total_recibido);
+      return totalVenta(v);
+    }
+    function tipoPagoVenta(v) {
+      if (v.digital) return 'Digital (' + v.digital + ')';
+      if (v.type && String(v.type).toLowerCase() != 'efectivo') return 'Digital (' + v.type + ')';
+      if (v.type) return String(v.type);
+      return 'Efectivo';
+    }
+    function fechaVenta(v) {
+      let d = (v.date != null ? v.date : (v.cerrada || Date.now()));
+      return new Date(d).toLocaleString();
+    }
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'ACAPE';
+    wb.created = new Date();
+
+    let sumRecibido = 0;
+    let sumTotal = 0;
+    let aoa = [
+      ['VENTAS' + etiquetaFiltro],
+      ['Rango de fechas', desde + ' a ' + hasta],
+      ['Generado el', new Date().toLocaleString()],
+      [],
+      ['#', 'Fecha', 'Tipo de Pago', 'Productos', 'Unidades', 'Recibido', 'Total Venta', 'Cambio', 'Cliente']
+    ];
+    ventas.forEach((v, i) => {
+      let unidades = 0;
+      let txt = [];
+      productosDeVenta(v).forEach(p => {
+        let lp = lineaProducto(p);
+        unidades += lp.cantidad;
+        txt.push(lp.name + ' x' + lp.cantidad + ' = $' + formatNumber(lp.total));
+      });
+      let total = totalVenta(v);
+      let recibido = recibidoVenta(v);
+      let cambio = recibido - total;
+      let textoRecibido = recibido === 0 ? 'FIADO' : (Math.abs(recibido - total) < 0.005 ? '---' : recibido);
+      sumRecibido += recibido;
+      sumTotal += total;
+      aoa.push([i + 1, fechaVenta(v), tipoPagoVenta(v), txt.join('; '), unidades, textoRecibido, total, Math.abs(cambio) < 0.005 ? '---' : cambio, v.cliente || 'Consumidor Final']);
+    });
+    let cambioTotal = sumRecibido - sumTotal;
+    aoa.push(['TOTAL', '', '', '', '', sumRecibido, sumTotal, Math.abs(cambioTotal) < 0.005 ? '---' : cambioTotal, ventas.length + ' venta(s)']);
+
+    let hoja = wb.addWorksheet('Ventas');
+    hoja.columns = [{ width: 6 }, { width: 20 }, { width: 18 }, { width: 55 }, { width: 10 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 22 }];
+
+    aoa.forEach((fila, i) => {
+      const row = hoja.addRow(fila);
+      if (i === 0) {
+        const t = row.getCell(1);
+        t.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+        t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+        t.alignment = { horizontal: 'center', vertical: 'middle' };
+        hoja.mergeCells(1, 1, 1, 9);
+      } else if (i === 4) {
+        row.eachCell((c) => {
+          c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+          c.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+      } else {
+        [5, 6, 7].forEach((cin) => {
+          const celda = row.getCell(cin + 1);
+          if (typeof celda.value === 'number') {
+            celda.numFmt = '#,##0';
+            celda.alignment = { horizontal: 'right' };
+          }
+        });
+        if (i === aoa.length - 1) {
+          row.eachCell((c) => {
+            if (c.value !== undefined && c.value !== '') {
+              c.font = { bold: true };
+              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E2F3' } };
+            }
+          });
+        }
+      }
+    });
+    hoja.getColumn(4).alignment = { wrapText: true };
+    hoja.views = [{ state: 'frozen', ySplit: 5 }];
+
+    const nombreArchivo = 'Ventas ' + desde + ' a ' + hasta + (etiquetaFiltro ? ' (filtrado)' : '') + '.xlsx';
+    wb.xlsx.writeBuffer().then((buffer) => {
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombreArchivo;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    });
   });
 }
 
