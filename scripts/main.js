@@ -3683,6 +3683,7 @@ router.get('/clientes', () => {
           <option value="">Proviene de: todos</option>
         </select>
         <button class="btn btn-outline-success" onclick="exportarExcelVentasClientes()"><i class="fa-solid fa-file-excel"></i> Excel Ventas</button>
+        <button class="btn btn-outline-secondary" onclick="selectorColumnasExcelVentas()"><i class="fa-solid fa-table-columns"></i> Columnas</button>
       </div>
       <div class="my-3">
         <input type="text" id="buscarClientePagina" class="form-control" autocomplete="off" placeholder="Buscar cliente por nombre o documento..." oninput="filtrarClientesPagina(this.value)">
@@ -5459,6 +5460,63 @@ function valoresUnicosClientes(campo) {
   return Object.keys(valores).sort((a, b) => a.localeCompare(b));
 }
 
+// COLUMNAS CONFIGURABLES DEL EXCEL DE VENTAS (la columna '#' siempre se mantiene)
+const COLUMNAS_EXCEL_VENTAS = [
+  { id: 'cliente', label: 'Cliente', width: 42 },
+  { id: 'documento', label: 'Documento', width: 26 },
+  { id: 'fecha', label: 'Fecha', width: 20 },
+  { id: 'tipo', label: 'Tipo de Pago', width: 18 },
+  { id: 'productos', label: 'Productos', width: 55 },
+  { id: 'unidades', label: 'Unidades', width: 10 },
+  { id: 'recibido', label: 'Recibido', width: 14 },
+  { id: 'total', label: 'Total Venta', width: 14 },
+  { id: 'cambio', label: 'Cambio', width: 12 }
+];
+
+function obtenerColumnasExcelVentas() {
+  let guardadas = null;
+  try { guardadas = JSON.parse(localStorage.getItem('excelVentasColumnas')); } catch (e) { guardadas = null; }
+  if (Array.isArray(guardadas) && guardadas.length) {
+    return guardadas.filter(id => COLUMNAS_EXCEL_VENTAS.some(c => c.id === id));
+  }
+  return COLUMNAS_EXCEL_VENTAS.map(c => c.id);
+}
+
+function selectorColumnasExcelVentas() {
+  let cols = obtenerColumnasExcelVentas();
+  popup.open({
+    title: 'Columnas del Excel de ventas',
+    content: `
+      <div>
+        <p class="small text-muted">Marca las columnas que quieres que aparezcan en el Excel:</p>
+        <div class="mb-2">
+          <button class="btn btn-outline-secondary btn-sm" onclick="marcarColumnasExcelVentas(true)">Todas</button>
+          <button class="btn btn-outline-secondary btn-sm" onclick="marcarColumnasExcelVentas(false)">Ninguna</button>
+        </div>
+        <div class="d-flex flex-column">
+          ${COLUMNAS_EXCEL_VENTAS.map(c => `<label class="mb-1"><input type="checkbox" value="${c.id}" class="col-excel-ventas" ${cols.includes(c.id) ? 'checked' : ''}> ${c.label}</label>`).join('')}
+        </div>
+        <br>
+        <button class="btn btn-outline-success" onclick="guardarColumnasExcelVentas()">Guardar</button>
+        <button class="btn btn-outline-secondary" onclick="popup.close()">Cancelar</button>
+      </div>`
+  });
+}
+
+function marcarColumnasExcelVentas(todas) {
+  document.querySelectorAll('.col-excel-ventas').forEach(cb => { cb.checked = todas; });
+}
+
+function guardarColumnasExcelVentas() {
+  const sel = Array.from(document.querySelectorAll('.col-excel-ventas:checked')).map(cb => cb.value);
+  if (!sel.length) {
+    return Toast.fire({ title: "Columnas", text: "Selecciona al menos una columna.", icon: "warning" });
+  }
+  localStorage.setItem('excelVentasColumnas', JSON.stringify(sel));
+  popup.close();
+  Toast.fire({ title: "Columnas", text: "Preferencias guardadas para el próximo Excel.", icon: "success" });
+}
+
 // DESCARGA UN EXCEL CON LAS VENTAS FILTRADAS POR RANGO DE FECHAS Y POR CLIENTE (CATEGORIA/PROVIENE)
 function exportarExcelVentasClientes() {
   if (typeof ExcelJS === 'undefined') {
@@ -5551,6 +5609,25 @@ function exportarExcelVentasClientes() {
       let d = (v.date != null ? v.date : (v.cerrada || Date.now()));
       return new Date(d).toLocaleString();
     }
+    function clienteVenta(v) {
+      if (v.cliente) return String(v.cliente);
+      let c = mapaClientes[v.clienteId || v.deudorId];
+      if (c && c.name) return String(c.name);
+      if (c && c.nombre) return String(c.nombre);
+      return 'Consumidor Final';
+    }
+    function documentoCliente(v) {
+      let c = mapaClientes[v.clienteId || v.deudorId];
+      if (c && c.document != null) return String(c.document);
+      if (c && c.doc != null) return String(c.doc);
+      return '';
+    }
+
+    let colIds = obtenerColumnasExcelVentas();
+    let cols = COLUMNAS_EXCEL_VENTAS.filter(c => colIds.includes(c.id));
+    let numCols = cols.length;
+    if (!numCols) return Toast.fire({ title: "Excel Ventas", text: "Selecciona al menos una columna en 'Columnas'.", icon: "warning" });
+    let colsDinero = cols.map((c, idx) => c.id === 'recibido' || c.id === 'total' || c.id === 'cambio' ? idx + 2 : null).filter(n => n != null);
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'ACAPE';
@@ -5562,8 +5639,9 @@ function exportarExcelVentasClientes() {
       ['VENTAS' + etiquetaFiltro],
       ['Rango de fechas', desde + ' a ' + hasta],
       ['Generado el', new Date().toLocaleString()],
+      ['Ventas en rango', ventas.length],
       [],
-      ['#', 'Fecha', 'Tipo de Pago', 'Productos', 'Unidades', 'Recibido', 'Total Venta', 'Cambio', 'Cliente']
+      ['#', ...cols.map(c => c.label)]
     ];
     ventas.forEach((v, i) => {
       let unidades = 0;
@@ -5579,13 +5657,33 @@ function exportarExcelVentasClientes() {
       let textoRecibido = recibido === 0 ? 'FIADO' : (Math.abs(recibido - total) < 0.005 ? '---' : recibido);
       sumRecibido += recibido;
       sumTotal += total;
-      aoa.push([i + 1, fechaVenta(v), tipoPagoVenta(v), txt.join('; '), unidades, textoRecibido, total, Math.abs(cambio) < 0.005 ? '---' : cambio, v.cliente || 'Consumidor Final']);
+      let val = {};
+      cols.forEach(c => {
+        val[c.id] = c.id === 'unidades' ? Math.round(unidades * 1000) / 1000
+          : c.id === 'productos' ? txt.join('; ')
+          : c.id === 'recibido' ? textoRecibido
+          : c.id === 'cambio' ? (Math.abs(cambio) < 0.005 ? '---' : cambio)
+          : c.id === 'total' ? total
+          : c.id === 'fecha' ? fechaVenta(v)
+          : c.id === 'tipo' ? tipoPagoVenta(v)
+          : c.id === 'cliente' ? clienteVenta(v)
+          : c.id === 'documento' ? documentoCliente(v)
+          : '';
+      });
+      aoa.push([i + 1, ...cols.map(c => val[c.id])]);
     });
     let cambioTotal = sumRecibido - sumTotal;
-    aoa.push(['TOTAL', '', '', '', '', sumRecibido, sumTotal, Math.abs(cambioTotal) < 0.005 ? '---' : cambioTotal, ventas.length + ' venta(s)']);
+    let tot = {};
+    cols.forEach(c => {
+      tot[c.id] = c.id === 'recibido' ? sumRecibido
+        : c.id === 'total' ? sumTotal
+        : c.id === 'cambio' ? (Math.abs(cambioTotal) < 0.005 ? '---' : cambioTotal)
+        : '';
+    });
+    aoa.push(['TOTAL', ...cols.map(c => tot[c.id])]);
 
     let hoja = wb.addWorksheet('Ventas');
-    hoja.columns = [{ width: 6 }, { width: 20 }, { width: 18 }, { width: 55 }, { width: 10 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 22 }];
+    hoja.columns = [{ width: 6 }, ...cols.map(c => ({ width: c.width }))];
 
     aoa.forEach((fila, i) => {
       const row = hoja.addRow(fila);
@@ -5594,16 +5692,16 @@ function exportarExcelVentasClientes() {
         t.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
         t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
         t.alignment = { horizontal: 'center', vertical: 'middle' };
-        hoja.mergeCells(1, 1, 1, 9);
-      } else if (i === 4) {
+        hoja.mergeCells(1, 1, 1, numCols + 1);
+      } else if (i === 5) {
         row.eachCell((c) => {
           c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
           c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
           c.alignment = { horizontal: 'center', vertical: 'middle' };
         });
       } else {
-        [5, 6, 7].forEach((cin) => {
-          const celda = row.getCell(cin + 1);
+        colsDinero.forEach((cin) => {
+          const celda = row.getCell(cin);
           if (typeof celda.value === 'number') {
             celda.numFmt = '#,##0';
             celda.alignment = { horizontal: 'right' };
@@ -5619,8 +5717,9 @@ function exportarExcelVentasClientes() {
         }
       }
     });
-    hoja.getColumn(4).alignment = { wrapText: true };
-    hoja.views = [{ state: 'frozen', ySplit: 5 }];
+    let idxProductos = cols.findIndex(c => c.id === 'productos');
+    if (idxProductos !== -1) hoja.getColumn(idxProductos + 2).alignment = { wrapText: true };
+    hoja.views = [{ state: 'frozen', ySplit: 6 }];
 
     const nombreArchivo = 'Ventas ' + desde + ' a ' + hasta + (etiquetaFiltro ? ' (filtrado)' : '') + '.xlsx';
     wb.xlsx.writeBuffer().then((buffer) => {
