@@ -1256,7 +1256,7 @@ router.post('/deleteVenta', (req, res) => {
 
   if (!data.venta) return res.json({ message: "Agrega la información de la venta." });
 
-  return res.json(database.deleteVenta(data.venta));
+  return res.json(database.deleteVenta(data.venta, data.clienteId));
 })
 
 router.post('/deleteVentaEdit', (req, res) => {

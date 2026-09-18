@@ -1350,7 +1350,7 @@ class Database {
 			
 			final_product.precio_final = element.precio_final != null
 				? redondearMoneda(element.precio_final)
-				: redondearMoneda(final_product.precio_unitario * final_product.cantidad);
+				: Math.round(final_product.precio_unitario * final_product.cantidad);
 
 			final_data.push(final_product)			
 			final_count = final_count + final_product.precio_final;
@@ -1424,7 +1424,9 @@ class Database {
 	      costo_adquisitivo: findingProduct.costo_adquisitivo
 	    };
 
-	    final_product.precio_final = redondearMoneda(final_product.precio_unitario * final_product.cantidad);
+	    final_product.precio_final = element.precio_final != null
+	        ? redondearMoneda(element.precio_final)
+	        : Math.round(final_product.precio_unitario * final_product.cantidad);
 
 	    // PARA SABER QUE PRODUCTOS FUERON MAS VENDIDOS
 	    findingProduct.selledChantity = (findingProduct.selledChantity?findingProduct.selledChantity:0) + 1;
@@ -1587,12 +1589,100 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		return {message: "Fecha de la venta actualizada exitosamente", data: findingVenta};
 	}
 
+	// LIMPIA LAS COMPRAS Y LA DEUDA FIADA DEL CLIENTE POR ID DE VENTA
+	// Devuelve true si logro limpiar algo en el cliente.
+	_limpiarComprasYDeudaCliente(clienteId, ventaId){
+		if (!clienteId) return false;
+		try {
+			let clientes = this.db.getData('/data/simple/clientes');
+			let cliente = clientes[clienteId];
+			if (!cliente) return false;
+
+			let huboCambios = false;
+
+			let compras = converterArray(cliente.compras || []).filter(c => {
+				if (String(c.ventaId) !== String(ventaId)) return true;
+				huboCambios = true;
+				return false;
+			});
+			cliente.compras = compras;
+
+			let movements = converterArray(cliente.movements || []);
+			let deudaARestar = 0;
+			movements = movements.filter(m => {
+				let elimina = String(m.ventaId) === String(ventaId);
+				if (elimina) {
+					deudaARestar += Number(m.monto || 0);
+					huboCambios = true;
+				}
+				return !elimina;
+			});
+
+			if (deudaARestar > 0) {
+				cliente.deuda = Math.max(0, Number(cliente.deuda || 0) - deudaARestar);
+				if (cliente.deuda <= 0) {
+					cliente.deuda = 0;
+					cliente.cuenta_abierta = null;
+				}
+			}
+			cliente.movements = movements;
+
+			if (huboCambios) {
+				// realtime-db-json NO BORRA archivos viejos al reducir un arreglo:
+				// los directorios de compras/movimientos quedan obsoletos y vuelven a leerse.
+				// Por eso se eliminan y se reescriben con el arreglo filtrado.
+				this.db.removeData(`/data/simple/clientes/${clienteId}/compras`);
+				this.db.removeData(`/data/simple/clientes/${clienteId}/movements`);
+				this.db.setData('/data/simple/clientes', clientes);
+			}
+			return huboCambios;
+		} catch (err) {
+			return false;
+		}
+	}
+
 	// OPTIMIZADA
-	deleteVenta(id){
+	deleteVenta(id, clienteId){
 		// let ventas = this.db.getData('/data/simple/ventas');
 		let findingVenta = this.db.initData(`/data/simple/ventas/${id}`);
-		if(!findingVenta) return {message: "Esta venta no existe o no fue concretada."};
-		
+
+		// LA VENTA NO EXISTE: si conocemos el cliente, solo se limpia el registro del cliente
+		// (ventas huerfanas que se borraron antes pero quedaron en compras/movimientos).
+		if (!findingVenta) {
+			if (clienteId) {
+				let huboCambios = this._limpiarComprasYDeudaCliente(clienteId, id);
+				return {
+					message: huboCambios
+						? `La venta #${id} no existe en el registro de ventas (no estaba en la caja); solo se elimino el registro del cliente.`
+						: `La venta #${id} no existe en el registro de ventas ni en los datos del cliente; no hay nada que eliminar.`,
+					data: true,
+					ventaEliminada: null,
+					ventaNoEncontrada: true
+				};
+			}
+			return {message: "Esta venta no existe o no fue concretada."};
+		}
+
+		let clienteVenta = findingVenta.clienteId || findingVenta.deudorId;
+
+		// RESTAURA EL STOCK Y LAS ESTADISTICAS DE VENTAS DE CADA PRODUCTO
+		try {
+			let productos = converterArray(findingVenta.products || []);
+			productos.forEach(p => {
+				let product = this.db.initData(`/data/simple/products/${p.id}`);
+				if (!product) return;
+				if (product.stock != null) {
+					product.stock = Number(product.stock || 0) + Number(p.cantidad || 0);
+				}
+				product.selledChantity = Math.max(0, Number(product.selledChantity || 0) - 1);
+				product.selledPricing = Math.max(0, Number(product.selledPricing || 0) - Number(p.precio_final || 0));
+				this.db.setData(`/data/simple/products/${p.id}`, product);
+			});
+		} catch (err) {}
+
+		// LIMPIA LAS COMPRAS Y LA DEUDA FIADA DEL CLIENTE
+		this._limpiarComprasYDeudaCliente(clienteVenta, id);
+
 		this.db.removeData(`/data/simple/ventas/${id}`);
 
 		return {message: "Venta eliminada satisfactoriamente.", data: true, ventaEliminada: findingVenta};

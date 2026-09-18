@@ -3219,6 +3219,37 @@ function filtrarComprasCliente(filtro) {
   renderComprasCliente(window._comprasClienteActual, filtro);
 }
 
+// ELIMINA UNA VENTA DEL CLIENTE DESDE LA ZONA DE COMPRAS (#/clientes)
+function eliminarVentaCliente(clienteId, ventaId) {
+  alert.fire({
+    title: "Eliminar venta del cliente",
+    text: `¿Estas seguro de querer eliminar la venta #${ventaId}? Se quitara de las compras del cliente, se restaurara el stock y se ajustara la deuda/caja.`,
+    confirmButtonText: "Eliminar",
+    confirmButtonColor: "#dc3545",
+    showCancelButton: true,
+    cancelButtonText: "Cancelar"
+  }).then((element) => {
+    if (!element.isConfirmed) return;
+
+    socket.once('deleteVenta', (data) => {
+      if (!data.data) return;
+
+      if (data.ventaNoEncontrada) {
+        alert.fire({
+          title: "Venta no encontrada en la caja",
+          text: `La venta #${ventaId} no existe en el registro de ventas actual. Solo se elimino el registro del cliente (compras/deuda), sin tocar caja ni stock.`,
+          icon: "info",
+          confirmButtonText: "Aceptar"
+        });
+      }
+
+      verComprasCliente(clienteId);
+    });
+
+    socket.emit('deleteVenta', { venta: ventaId, clienteId: clienteId });
+  })
+}
+
 function renderComprasCliente(info, filtro) {
   const cont = document.querySelector('#comprasClienteContenido');
   const res = document.querySelector('#comprasClienteResumen');
@@ -3243,7 +3274,7 @@ function renderComprasCliente(info, filtro) {
     cont.innerHTML = '<p class="text-muted small">Este cliente no tiene compras en este período.</p>';
   } else {
     cont.innerHTML = `<table class="table table-sm table-striped">
-      <thead><tr><th># Vent</th><th>Fecha</th><th>Items</th><th>Total</th><th></th></tr></thead>
+      <thead><tr><th># Vent</th><th>Fecha</th><th>Items</th><th>Total</th><th>Acciones</th></tr></thead>
       <tbody>
         ${filtradas.map(c => `
           <tr>
@@ -3251,7 +3282,10 @@ function renderComprasCliente(info, filtro) {
             <td>${formatDate(c.fecha)}</td>
             <td class="small">${(c.productos || []).map(p => p.nombre + ' x' + p.cantidad).join('<br>')}</td>
             <td>$ ${formatNumber(c.total)}</td>
-            <td><button class="btn btn-outline-secondary btn-sm" onclick="verCompraCliente(${c.ventaId})">Ver</button></td>
+            <td class="text-nowrap">
+              <button class="btn btn-outline-secondary btn-sm" onclick="verCompraCliente(${c.ventaId})">Ver</button>
+              <button class="btn btn-outline-danger btn-sm" onclick="eliminarVentaCliente(${info.id}, ${c.ventaId})" title="Eliminar venta"><i class="fa-solid fa-trash"></i></button>
+            </td>
           </tr>
         `).join('')}
       </tbody>
