@@ -1675,6 +1675,27 @@ function configurarSwitchFiado(finalPrice) {
   aplicarEstado();
 }
 
+// GUARD ANTI-DOBLE-CLICK AL CREAR CLIENTE (evita encolar peticiones mientras responde)
+function crearClienteGuard(btn) {
+  if (window._creandoCliente) return true;
+  window._creandoCliente = true;
+  if (btn && btn.disabled !== undefined) {
+    btn.dataset.original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+  }
+  setTimeout(() => { window._creandoCliente = false; }, 15000);
+  return false;
+}
+
+function terminarCrearCliente(btn) {
+  window._creandoCliente = false;
+  if (btn && btn.disabled !== undefined) {
+    btn.disabled = false;
+    if (btn.dataset.original) btn.innerHTML = btn.dataset.original;
+  }
+}
+
 function crearClienteRapido(modo) {
   popup.open({
     title: "Crear Cliente Nuevo",
@@ -1694,6 +1715,9 @@ function crearClienteRapido(modo) {
 }
 
 function enviarClienteRapido(e, modo) {
+  let btn = e[3];
+  if (crearClienteGuard(btn)) return false;
+
   let client = {
     name: e[0].value,
     type: 'cc',
@@ -1705,6 +1729,7 @@ function enviarClienteRapido(e, modo) {
   socket.emit('createClient', { client: client, token: token });
 
   socket.once('createClient', (data) => {
+    terminarCrearCliente(btn);
     if (!data.data) return Toast.fire({
       text: data.message,
       icon: "error"
@@ -3359,6 +3384,9 @@ function imprimirCompraCliente(ventaId) {
 }
 
 function submitCreateClient(e) {
+  let btn = e[e.length - 1];
+  if (crearClienteGuard(btn)) return false;
+
   let data = {
     name: e[0].value,
     type: e[1].value,
@@ -6035,6 +6063,7 @@ socket.on('ventas-manager', (data) => {
 })
 
 socket.on('clientes-manager', (data) => {
+  window._creandoCliente = false;
   Toast.fire({
     title: "Clientes",
     text: data.message,

@@ -406,7 +406,6 @@ class Database {
 		if(!pedido.products[0]) return {message: "Por lo minimo se tiene que facturar un producto"};
 
 		let ids = this.db.getData('/data/simple/id');
-		let pedidos = this.db.getData('/data/simple/pedidos');
 		ids.pedidos = ids.pedidos+1;
 		
 		pedido.id = ids.pedidos;
@@ -662,24 +661,22 @@ class Database {
 		let validateUser = this.validatePerms(token, 'facturar');
 		if(!validateUser) return {message: "El usuario parece no tener permisos"};		
 
-		let clientes = this.db.getData('/data/simple/clientes');
-
-		let finding_client = clientes[id];
+		let finding_client = this.db.getData('/data/simple/clientes/' + id);
 		if(!finding_client) return {message: "Este cliente no existe"};
 
-		clientes[id].deuda = Number(clientes[id].deuda ? clientes[id].deuda : 0) + Number(deuda.monto);
-		if(!clientes[id].cuenta_abierta) clientes[id].cuenta_abierta = new Date();
+		finding_client.deuda = Number(finding_client.deuda ? finding_client.deuda : 0) + Number(deuda.monto);
+		if(!finding_client.cuenta_abierta) finding_client.cuenta_abierta = new Date();
 
-		let settings_data = converterArray(clientes[id].movements?clientes[id].movements:{});
+		let settings_data = converterArray(finding_client.movements?finding_client.movements:{});
 		deuda.date = new Date().toString();
 		deuda.sign = "-";
 		settings_data.push(deuda);
 
-		clientes[id].movements = settings_data;
+		finding_client.movements = settings_data;
 
-		this.db.setData('/data/simple/clientes', clientes);
+		this.db.setData('/data/simple/clientes/' + id, finding_client);
 
-		return {message: "Deuda añadida exitosamente.", data: clientes[id], movement: deuda};
+		return {message: "Deuda añadida exitosamente.", data: finding_client, movement: deuda};
 	}
 
 	// PAGAR DEUDA DE UN CLIENTE: disminuye la deuda y registra el movimiento
@@ -691,26 +688,24 @@ class Database {
 		let validateUser = this.validatePerms(token, 'facturar');
 		if(!validateUser) return {message: "El usuario parece no tener permisos"};		
 
-		let clientes = this.db.getData('/data/simple/clientes');
-
-		let finding_client = clientes[id];
+		let finding_client = this.db.getData('/data/simple/clientes/' + id);
 		if(!finding_client) return {message: "Este cliente no existe"};
 
-		let deudaActual = Number(clientes[id].deuda ? clientes[id].deuda : 0);
+		let deudaActual = Number(finding_client.deuda ? finding_client.deuda : 0);
 		let nuevoValor = deudaActual - Number(deuda.monto);
 		if(nuevoValor < 0) nuevoValor = 0;
 
-		clientes[id].deuda = nuevoValor;
+		finding_client.deuda = nuevoValor;
 		deuda.sign = "+"
 
-		let settings_data = converterArray(clientes[id].movements?clientes[id].movements:{});
+		let settings_data = converterArray(finding_client.movements?finding_client.movements:{});
 		settings_data.push(deuda);
 
-		clientes[id].movements = settings_data;
+		finding_client.movements = settings_data;
 
-		this.db.setData('/data/simple/clientes', clientes);
+		this.db.setData('/data/simple/clientes/' + id, finding_client);
 
-		return {message: "Deuda removida exitosamente.", data: clientes[id], movement: deuda};
+		return {message: "Deuda removida exitosamente.", data: finding_client, movement: deuda};
 	}
 
 	// ----------------------------------------------------------------------------
@@ -873,7 +868,7 @@ class Database {
 	// -> POR ACTUALIZAR >>
 	// --------------------------------------------------------------------
 	createUser(user, password, role){
-		let users_fin = this.db.getData('/data/simple/users');
+		let users_fin = this.db.getData('/data/simple/users', ['logs']);
 		let ids = this.db.getData('/data/simple/id');
 
 		let users = converterArray(users_fin);
@@ -881,8 +876,7 @@ class Database {
 
 		if(!searching){
 			ids.users += 1;
-			let users_object = users_fin;
-			users_object[ids.users] = {
+			let nuevoUsuario = {
 				user: user,
 				password: password,
 				role: role?role:"user",
@@ -891,12 +885,12 @@ class Database {
 				sha256: sha256(user).toString()
 			};
 
-			users_object[ids.users].logs = this.createLog('createUser', users_object[ids.users].id);
+			nuevoUsuario.logs = this.createLog('createUser', nuevoUsuario.id);
 
-			this.db.setData('/data/simple/users', users_object);
+			this.db.setData(`/data/simple/users/${nuevoUsuario.id}`, nuevoUsuario);
 			this.db.setData('/data/simple/id', ids);
 
-			return {message: "Usuario creado satisfactoriamente.", data: users_object[ids.users]};
+			return {message: "Usuario creado satisfactoriamente.", data: nuevoUsuario};
 		}else {
 			return {message: "Este nombre de usuario ya se encuentro usado.", type: "error"};
 		}
@@ -906,7 +900,6 @@ class Database {
 	deleteUser(token){
 		let userFinding = this.getUserToken(token);
 		if(!userFinding.data) return userFinding;
-		let users = this.db.getData('/data/simple/users');
 		this.db.removeData(`/data/simple/users/${userFinding.data.id}`);
 		return {message: "Usuario eliminado satisfactoriamente", data: userFinding.data};
 	}
@@ -914,20 +907,19 @@ class Database {
 	// EDITAR USUARIO
 
 	editUser(id, data){
-		let users = this.db.getData('/data/simple/users');
-		let userFinding = users[id];
+		let userFinding = this.db.initData(`/data/simple/users/${id}`);
 		if(!userFinding) return userFinding;
 
-		users[userFinding.id].user = data.user;
-		users[userFinding.id].password = data.password;
-		users[userFinding.id].role = data.role;
+		userFinding.user = data.user;
+		userFinding.password = data.password;
+		userFinding.role = data.role;
 
-		this.db.setData(`/data/simple/users/${userFinding.id}`, users[userFinding.id]);
-		return {message: "Usuario editado satisfactoriamente", data: users[userFinding.id]};
+		this.db.setData(`/data/simple/users/${userFinding.id}`, userFinding);
+		return {message: "Usuario editado satisfactoriamente", data: userFinding};
 	}
 	// OBTENER LA INFO DE UN USUARIO CON EL USUARIO Y LA CONTRASEÑA, ES MAS QUE TODO PARA EL LOGIN DE LA INTERFAZ
 	getUser(user, password){
-		let data = this.db.getData('/data/simple/users');
+		let data = this.db.getData('/data/simple/users', ['logs']);
 
 		let users = converterArray(data);
 		let searching = users.find(ch => ch.user == user);
@@ -935,15 +927,19 @@ class Database {
 
 		if(searching.password != password) return {message: "La contraseña es incorrecta.", type: "error"};
 
+		searching = this.db.initData('/data/simple/users/' + searching.id) || searching;
+
 		return {message: "Usuario iniciado.", data: searching};
 	}
 
 	// INICIAR A TRAVEZ DEL TOKEN
 	getUserToken(token){
-		let data = this.db.getData('/data/simple/users');
+		let data = this.db.getData('/data/simple/users', ['logs']);
 		let users = converterArray(data);
 		let searching = users.find(ch => ch.token == token);
 		if(!searching) return {message: "El token es invalido"};
+
+		searching = this.db.initData('/data/simple/users/' + searching.id) || searching;
 
 		return {message: "Token iniciado", data: searching};
 	}
@@ -961,7 +957,7 @@ class Database {
 	// --------------------------------------------------------------------
 	// OPTIMIZADA
 	createProduct(data, token) {
-	  let data_db = this.db.getData('/data/simple/products');
+	  let data_db = this.db.getData('/data/simple/products', ['log']);
 	  let ids = this.db.getData('/data/simple/id');
 
 	  ids.products = ids.products + 1;
@@ -1039,7 +1035,7 @@ class Database {
 	    return { message: "El usuario no tiene permisos suficientes." };
 	  }
 
-	  let allProducts = this.db.getData('/data/simple/products');
+	  let allProducts = this.db.getData('/data/simple/products', ['log']);
 	  let itemsProcesados = [];
 	  let errores = [];
 
@@ -1072,8 +1068,11 @@ class Database {
 	    });
 	  }
 
-	  // Guardar productos actualizados
-	  this.db.setData(`/data/simple/products`, allProducts);
+	  // Guardar solo los productos modificados
+	  const idsModificados = [...new Set(itemsProcesados.map(item => item.productoId))];
+	  idsModificados.forEach(pid => {
+	    this.db.setData(`/data/simple/products/${pid}`, allProducts[pid]);
+	  });
 
 	  // Guardar movimiento único y unificado
 	  const movimientoId = generarToken(new Date());
@@ -1315,12 +1314,13 @@ class Database {
 	cotizar(ventas = [], token, mayor){
 		if(!ventas[0]) return {"message": "Añade productos para concretar la venta."};
 
-		let products = this.db.getData('/data/simple/products');
+		let products = this.db.getData('/data/simple/products', ['log']);
 		let ids = this.db.getData('/data/simple/id');
 
 		let final_data = [];
 		let products_dont = [];
 		let final_count = 0;
+		let modificados = [];
 
 		ventas.forEach((element, i, array) => {
 			let findingProduct = products[element.id];
@@ -1328,6 +1328,7 @@ class Database {
 			let final_product = {};
 
 			if(findingProduct.stock != null) findingProduct.stock = findingProduct.stock - Number(element.cantidad?element.cantidad:0);
+			if(modificados.indexOf(findingProduct.id) === -1) modificados.push(findingProduct.id);
 			products[findingProduct.id] = findingProduct;
 
 			if(!mayor) {
@@ -1368,7 +1369,10 @@ class Database {
 			mayor: mayor
 		};
 
-		this.db.setData(`/data/simple/products`, products);
+		// Guarda solo los productos cuyo stock se modifico
+		modificados.forEach(pid => {
+			this.db.setData(`/data/simple/products/${pid}`, products[pid]);
+		});
 
 		return {message: "Cotización", data: final_venta};
 	}
@@ -1380,7 +1384,7 @@ class Database {
 
 	  total_recibido = redondearMoneda(removeCommaSeparators(String(total_recibido == null ? 0 : total_recibido))) || 0;
 
-	  let products = this.db.getData('/data/simple/products');
+	  let products = this.db.getData('/data/simple/products', ['log']);
 	  let ids = this.db.getData('/data/simple/id');
 
 	  let final_data = [];
@@ -1468,8 +1472,8 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
   let vinculoId = clientId || deudorId;
   if (vinculoId) {
     try {
-      let clientes = this.db.getData('/data/simple/clientes');
-      let findingClient = clientes[clientId];
+      let findingClient = clientId ? this.db.getData('/data/simple/clientes/' + clientId) : null;
+      let clienteDeudor = null;
 
       if (findingClient && clientId) {
         final_venta.clienteId = clientId;
@@ -1490,7 +1494,11 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
       // VENTA A CREDITO (fiado): la diferencia se registra como deuda del deudor
       let deudaPendiente = redondearMoneda(final_venta.total_pago - final_venta.recibido);
       if (deudorId && deudaPendiente > 0.005) {
-        let clienteDeudor = clientes[deudorId];
+        if (deudorId == clientId) {
+          clienteDeudor = findingClient;
+        } else {
+          clienteDeudor = this.db.getData('/data/simple/clientes/' + deudorId);
+        }
         if (clienteDeudor) {
           clienteDeudor.deuda = Number(clienteDeudor.deuda ? clienteDeudor.deuda : 0) + deudaPendiente;
           if(!clienteDeudor.cuenta_abierta) clienteDeudor.cuenta_abierta = new Date();
@@ -1505,9 +1513,15 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
         }
       }
 
-      if (findingClient || deudorId) {
+      if (findingClient) {
+        this.db.setData(`/data/simple/clientes/${clientId}`, findingClient);
+      }
+      if (clienteDeudor && (!clientId || String(deudorId) !== String(clientId))) {
+        this.db.setData(`/data/simple/clientes/${deudorId}`, clienteDeudor);
+      }
+
+      if (findingClient || clienteDeudor) {
         this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
-        this.db.setData('/data/simple/clientes', clientes);
       }
     } catch (err) {}
   }
@@ -1558,8 +1572,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		let clienteId = findingVenta.clienteId || findingVenta.deudorId;
 		if(clienteId){
 			try {
-				let clientes = this.db.getData('/data/simple/clientes');
-				let cliente = clientes[clienteId];
+				let cliente = this.db.getData('/data/simple/clientes/' + clienteId);
 				if(cliente){
 					let changed = false;
 
@@ -1581,7 +1594,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 					});
 					cliente.movements = movements;
 
-					if(changed) this.db.setData('/data/simple/clientes', clientes);
+					if(changed) this.db.setData('/data/simple/clientes/' + clienteId, cliente);
 				}
 			} catch (err) {}
 		}
@@ -1594,8 +1607,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 	_limpiarComprasYDeudaCliente(clienteId, ventaId){
 		if (!clienteId) return false;
 		try {
-			let clientes = this.db.getData('/data/simple/clientes');
-			let cliente = clientes[clienteId];
+			let cliente = this.db.getData('/data/simple/clientes/' + clienteId);
 			if (!cliente) return false;
 
 			let huboCambios = false;
@@ -1633,7 +1645,12 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 				// Por eso se eliminan y se reescriben con el arreglo filtrado.
 				this.db.removeData(`/data/simple/clientes/${clienteId}/compras`);
 				this.db.removeData(`/data/simple/clientes/${clienteId}/movements`);
-				this.db.setData('/data/simple/clientes', clientes);
+				if (cliente.cuenta_abierta == null) {
+					// removeData no elimina hojas .fdb (solo directorios): se borra el archivo directo
+					const rutaCuenta = path.join(this.db.route, `data/simple/clientes/${clienteId}/cuenta_abierta.fdb`);
+					if (fs.existsSync(rutaCuenta)) fs.rmSync(rutaCuenta, { force: true });
+				}
+				this.db.setData('/data/simple/clientes/' + clienteId, cliente);
 			}
 			return huboCambios;
 		} catch (err) {
@@ -1705,10 +1722,23 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		let validateUser = this.validatePerms(token, 'view');
 		if(!validateUser) return {message: "No tiene permisos suficientes."};
 
-		let users = this.db.getData('/data/simple/clientes');
+		if (data.id != null) {
+			let directo = this.db.getData('/data/simple/clientes/' + data.id);
+			if (directo) return directo;
+		}
+
+		let users = this.db.getData('/data/simple/clientes', ['compras', 'movements']);
 		let array_user = converterArray(users);
 
-		return users[data.id] || array_user.find(ch => ch.name == data.name) || (data.document ? array_user.find(ch => ch.document == data.document) : undefined);
+		if (data.name) {
+			let porNombre = array_user.find(ch => ch.name == data.name);
+			if (porNombre) return porNombre;
+		}
+		if (data.document) {
+			let porDocumento = array_user.find(ch => ch.document == data.document);
+			if (porDocumento) return porDocumento;
+		}
+		return undefined;
 	}
 	createClient(data, token){
 		if(!data) return {message: "Agrega la información del cliente"};
@@ -1721,10 +1751,9 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 
 		if(!data.name) return {message: "El nombre es obligatorio ponerlo."};
 
-		let clients = this.db.getData('/data/simple/clientes');
 		let ids = this.db.getData('/data/simple/id');
 
-		ids.clientes = ids.clientes+1;
+		ids.clientes = (ids.clientes || 0) + 1;
 
 		let final_client = {
 			name: data.name,
@@ -1743,10 +1772,9 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 			cuenta_abierta: null,
 			id: ids.clientes
 		}
-		clients[ids.clientes] = final_client;
 
 		this.db.setData('/data/simple/id', ids);
-		this.db.setData('/data/simple/clientes', clients);
+		this.db.setData('/data/simple/clientes/' + ids.clientes, final_client);
 
 		return {message: "Cliente guardado satisfactoriamente", data: final_client};
 	}
@@ -1757,7 +1785,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		let validateUser = this.validatePerms(token, 'clientManager');
 		if(!validateUser) return {message: "No tiene permisos suficientes."};
 
-		let clients = this.db.getData('/data/simple/clientes');
+		let clients = this.db.getData('/data/simple/clientes', ['compras', 'movements']);
 		let ids = this.db.getData('/data/simple/id');
 
 		let existingNames = new Set();
@@ -1808,7 +1836,9 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		});
 
 		this.db.setData('/data/simple/id', ids);
-		this.db.setData('/data/simple/clientes', clients);
+		creados.forEach(cid => {
+			this.db.setData(`/data/simple/clientes/${cid}`, clients[cid]);
+		});
 
 		return {
 			message: `${creados.length} cliente(s) importado(s) satisfactoriamente.`,
@@ -1828,23 +1858,23 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 
 		if(!data.id) return {message: "Agrega el id del cliente que quieres modificar."};
 
-		let clients = this.db.getData('/data/simple/clientes');
+		let cliente = this.db.getData('/data/simple/clientes/' + data.id);
 
-		if(!clients[data.id]) return {message: "Este cliente no existe o ya fue eliminado."};
+		if(!cliente) return {message: "Este cliente no existe o ya fue eliminado."};
 
-		clients[data.id].name = data.name;
-		clients[data.id].document = data.document
-		clients[data.id].phone = data.phone
-		clients[data.id].correo = data.correo;
-		clients[data.id].city = data.city
-		clients[data.id].direccion = data.direccion;
-		clients[data.id].categoria = data.categoria != null ? String(data.categoria).trim() : (clients[data.id].categoria || "");
-		clients[data.id].proviene = data.proviene != null ? String(data.proviene).trim() : (clients[data.id].proviene || "");
+		cliente.name = data.name;
+		cliente.document = data.document
+		cliente.phone = data.phone
+		cliente.correo = data.correo;
+		cliente.city = data.city
+		cliente.direccion = data.direccion;
+		cliente.categoria = data.categoria != null ? String(data.categoria).trim() : (cliente.categoria || "");
+		cliente.proviene = data.proviene != null ? String(data.proviene).trim() : (cliente.proviene || "");
 
-		this.db.setData('/data/simple/clientes', clients);
+		this.db.setData('/data/simple/clientes/' + data.id, cliente);
 
 
-		return {message: "Cliente editado satisfactoriamente", data: clients[data.id]};
+		return {message: "Cliente editado satisfactoriamente", data: cliente};
 	}
 
 	deleteClient(id, token){
@@ -1866,7 +1896,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 	getClients(data){
 		let validateUser = this.validatePerms(data, 'view');
 		if(!validateUser) return {message: "No tiene permisos suficientes."};
-		let clientes = this.db.getData('/data/simple/clientes', ['compras']);
+		let clientes = this.db.getData('/data/simple/clientes', ['compras', 'movements']);
 		let livianos = {};
 		converterArray(clientes).forEach(ch => {
 			livianos[ch.id] = {
@@ -1882,7 +1912,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 	getClientesCompletos(data){
 		let validateUser = this.validatePerms(data, 'view');
 		if(!validateUser) return {message: "No tiene permisos suficientes."};
-		let clientes = this.db.getData('/data/simple/clientes', ['compras']);
+		let clientes = this.db.getData('/data/simple/clientes', ['compras', 'movements']);
 		return {message: "Lista de clientes", data: clientes};
 	}
 
@@ -1891,7 +1921,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		let validateUser = this.validatePerms(token, 'facturar');
 		if(!validateUser) return {message: "El usuario parece no tener permisos"};
 
-		let clientes = this.db.getData('/data/simple/clientes');
+		let clientes = this.db.getData('/data/simple/clientes', ['compras']);
 		let array_clientes = converterArray(clientes);
 
 		let deudores = {};
@@ -1918,8 +1948,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		let validateUser = this.validatePerms(token, 'view');
 		if(!validateUser) return {message: "No tiene permisos suficientes."};
 
-		let clientes = this.db.getData('/data/simple/clientes');
-		let findingClient = clientes[id];
+		let findingClient = this.db.getData('/data/simple/clientes/' + id);
 		if(!findingClient) return {message: "Este cliente no existe o ya fue eliminado."};
 
 		let compras = converterArray(findingClient.compras || {});
@@ -2085,7 +2114,9 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 		let findingPresupuesto = this.db.initData(`/data/simple/presupuestos/${id}`);
 		if(!findingPresupuesto) return {message: "Este presupuesto pudo haber sido eliminado ya"};
 
-		return {message: "Presupuesto encontrado", data: findingPresupuesto};
+		this.db.removeData(`/data/simple/presupuestos/${id}`);
+
+		return {message: "Presupuesto eliminado satisfactoriamente", data: findingPresupuesto};
 	}
 
 	// OPTIMIZADA
@@ -2430,7 +2461,7 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 	  let validateUser = this.validatingUseringToken(token);
 	  if (!validateUser.data) return { message: "Token fallido" };
 
-	  let products = this.db.getData('/data/simple/products');
+	  let products = this.db.getData('/data/simple/products', ['log']);
 	  let ids = this.db.getData('/data/simple/id');
 
 	  let final_data = [];
@@ -2513,7 +2544,7 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 
 	  if (!validateUser.data) return { message: "Token Fallido" };
 
-	  let products = this.db.getData('/data/simple/products');
+	  let products = this.db.getData('/data/simple/products', ['log']);
 	  let ids = this.db.getData('/data/simple/id');
 
 	  let final_data = [];
