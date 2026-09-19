@@ -708,6 +708,45 @@ class Database {
 		return {message: "Deuda removida exitosamente.", data: finding_client, movement: deuda};
 	}
 
+	// SALDAR DEUDA POR COMPLETO: pone la deuda en cero y deja un separador
+	// en el historial (movimiento sign: 'S') para distinguir las compras
+	// anteriores de las que vengan despues.
+	saldarDeuda(id, token){
+		if(!id) return {message: "Tienes que poner el id del cliente"};
+
+		let validateUser = this.validatePerms(token, 'facturar');
+		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+
+		let finding_client = this.db.getData('/data/simple/clientes/' + id);
+		if(!finding_client) return {message: "Este cliente no existe"};
+
+		let deudaAnterior = Number(finding_client.deuda ? finding_client.deuda : 0);
+		if(deudaAnterior <= 0) return {message: "Este cliente no tiene deuda pendiente."};
+
+		finding_client.deuda = 0;
+		finding_client.cuenta_abierta = null;
+
+		// removeData no elimina hojas .fdb (solo directorios): se borra el archivo directo
+		const rutaCuenta = path.join(this.db.route, `data/simple/clientes/${id}/cuenta_abierta.fdb`);
+		if (fs.existsSync(rutaCuenta)) fs.rmSync(rutaCuenta, { force: true });
+
+		let settings_data = converterArray(finding_client.movements?finding_client.movements:{});
+		let separador = {
+			monto: deudaAnterior,
+			sign: "S",
+			ventaId: null,
+			desc: "Deuda saldada",
+			date: new Date().toString()
+		};
+		settings_data.push(separador);
+
+		finding_client.movements = settings_data;
+
+		this.db.setData('/data/simple/clientes/' + id, finding_client);
+
+		return {message: "Deuda saldada exitosamente.", data: finding_client, movement: separador};
+	}
+
 	// ----------------------------------------------------------------------------
 	// -> POR ACTUALIZAR ^^
 	// ----------------------------------------------------------------------------
@@ -1971,6 +2010,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 				phone: findingClient.phone,
 				document: findingClient.document,
 				compras,
+				movements: converterArray(findingClient.movements || {}),
 				total,
 				cantVentas: compras.length,
 				mensual

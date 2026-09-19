@@ -3282,8 +3282,8 @@ function renderComprasCliente(info, filtro) {
   if (!cont) return;
 
   const ahora = new Date();
-  const filtradas = (info.compras || []).filter(c => {
-    const d = new Date(c.fecha || 0);
+  const enPeriodo = (ts) => {
+    const d = new Date(ts || 0);
     if (filtro === '30d') return (ahora - d) <= 30 * 24 * 3600 * 1000;
     if (filtro === 'mes') return d.getFullYear() === ahora.getFullYear() && d.getMonth() === ahora.getMonth();
     if (filtro === 'mesAnterior') {
@@ -3292,17 +3292,40 @@ function renderComprasCliente(info, filtro) {
       return d.getFullYear() === anio && d.getMonth() === mes;
     }
     return true;
-  });
+  };
+
+  const filtradas = (info.compras || []).filter(c => enPeriodo(c.fecha));
+  const separadores = (info.movements || [])
+    .filter(m => m.sign == 'S')
+    .map(m => ({
+      fecha: m.date ? new Date(m.date) - 0 : 0,
+      html: `
+        <tr>
+          <td colspan="5" class="text-center small fw-bold" style="background:#fff3cd; color:#856404; font-style:italic;">
+            — Deuda saldada ($${formatNumber(m.monto)}) · ${m.date ? new Date(m.date).toLocaleDateString() : ""} —
+          </td>
+        </tr>
+      `
+    }))
+    .filter(s => enPeriodo(s.fecha));
+
+  const filas = [
+    ...filtradas.map(c => ({ fecha: Number(c.fecha || 0), tipo: 'compra', c })),
+    ...separadores.map(s => ({ fecha: s.fecha, tipo: 'sep', html: s.html }))
+  ].sort((a, b) => (b.fecha || 0) - (a.fecha || 0));
 
   const subtotal = filtradas.reduce((s, c) => s + Number(c.total || 0), 0);
 
-  if (!filtradas.length) {
+  if (!filas.length) {
     cont.innerHTML = '<p class="text-muted small">Este cliente no tiene compras en este período.</p>';
   } else {
     cont.innerHTML = `<table class="table table-sm table-striped">
       <thead><tr><th># Vent</th><th>Fecha</th><th>Items</th><th>Total</th><th>Acciones</th></tr></thead>
       <tbody>
-        ${filtradas.map(c => `
+        ${filas.map(f => {
+          if (f.tipo === 'sep') return f.html;
+          let c = f.c;
+          return `
           <tr>
             <td>${c.ventaId}</td>
             <td>${formatDate(c.fecha)}</td>
@@ -3313,7 +3336,8 @@ function renderComprasCliente(info, filtro) {
               <button class="btn btn-outline-danger btn-sm" onclick="eliminarVentaCliente(${info.id}, ${c.ventaId})" title="Eliminar venta"><i class="fa-solid fa-trash"></i></button>
             </td>
           </tr>
-        `).join('')}
+        `;
+        }).join('')}
       </tbody>
     </table>`;
   }
@@ -5200,6 +5224,30 @@ function makePago(id) {
   })
 }
 
+// SALDA LA DEUDA POR COMPLETO: deja la deuda en cero y un separador en el historial
+function saldarDeuda(id) {
+  socket.emit('saldarDeuda', {
+    id: id,
+    token: sessionStorage.getItem('acape-session')
+  });
+
+  socket.once('saldarDeuda', (data) => {
+    if (!data.data) return Toast.fire({
+      icon: "error",
+      text: data.message
+    });
+
+    Toast.fire({
+      title: "Deuda saldada satisfactoriamente",
+      text: data.data.name + ": la deuda quedo en $0 y se agrego un separador al historial.",
+      icon: "success"
+    });
+
+    popup.start();
+    listingDeudores();
+  })
+}
+
 function editDeudor(id) {
   socket.emit('getDeudores', { token: sessionStorage.getItem('acape-session') });
   socket.once('getDeudores', (data) => {
@@ -5227,6 +5275,7 @@ function editDeudor(id) {
         <br>
         <button class="btn btn-outline-danger" onclick="makePrestamo('${id}')"><i class="fa-solid fa-money-bill"></i> Prestamo</button>
         <button class="btn btn-outline-primary" onclick="makePago('${id}')"><i class="fa-solid fa-receipt"></i> Pago de deuda</button>
+        <button class="btn btn-outline-success" onclick="saldarDeuda('${id}')"><i class="fa-solid fa-check-double"></i> Saldar deuda</button>
         <hr>
         <h6>Movimientos y ventas</h6>
         <div style="max-height:420px; overflow-y:auto;">
@@ -5273,6 +5322,20 @@ function editDeudor(id) {
       });
 
       movs.forEach(m => {
+        if (m.sign == "S") {
+          filas.push({
+            fecha: m.date ? new Date(m.date) - 0 : 0,
+            ventaId: null,
+            html: `
+              <tr>
+                <td colspan="4" class="text-center small fw-bold" style="background:#fff3cd; color:#856404; font-style:italic;">
+                  — Deuda saldada ($${formatNumber(m.monto)}) · ${m.date ? new Date(m.date).toLocaleDateString() : ""} —
+                </td>
+              </tr>
+            `
+          });
+          return;
+        }
         if (m.sign == "+" || m.ventaId == null) {
           filas.push({
             fecha: m.date ? new Date(m.date) - 0 : 0,

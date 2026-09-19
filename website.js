@@ -1077,6 +1077,13 @@ router.post('/removeDeuda', (req, res) => {
   res.json(database.removeDeuda(data.id, data.deuda, data.token?data.token:finalUser.token));
 });
 
+router.post('/saldarDeuda', (req, res) => {
+  const data = req.body;
+  if(!data.id) return res.json({message: "Añade la info del id"});
+
+  res.json(database.saldarDeuda(data.id, data.token?data.token:undefined));
+});
+
 
 
 // FUNCIONES DE PRODUCTOS DE LA APP PRINCIPAL --- PRODUCTS//
