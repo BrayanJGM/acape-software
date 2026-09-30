@@ -3734,6 +3734,9 @@ router.get('/clientes', () => {
         <select id="filtroVentasProviene" class="form-select" style="max-width:200px">
           <option value="">Proviene de: todos</option>
         </select>
+        <select id="filtroVentasCondicion" class="form-select" style="max-width:210px">
+          ${CONDICIONES_EXCEL_VENTAS.map(c => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.label)}</option>`).join('')}
+        </select>
         <button class="btn btn-outline-success" onclick="exportarExcelVentasClientes()"><i class="fa-solid fa-file-excel"></i> Excel Ventas</button>
         <button class="btn btn-outline-secondary" onclick="selectorColumnasExcelVentas()"><i class="fa-solid fa-table-columns"></i> Columnas</button>
       </div>
@@ -5556,19 +5559,31 @@ const COLUMNAS_EXCEL_VENTAS = [
   { id: 'cliente', label: 'Cliente', width: 42 },
   { id: 'documento', label: 'Documento', width: 26 },
   { id: 'fecha', label: 'Fecha', width: 20 },
-  { id: 'tipo', label: 'Tipo de Pago', width: 18 },
+  { id: 'tipo', label: 'Método', width: 18 },
+  { id: 'condicion', label: 'Condición', width: 17 },
   { id: 'productos', label: 'Productos', width: 55 },
   { id: 'unidades', label: 'Unidades', width: 10 },
   { id: 'recibido', label: 'Recibido', width: 14 },
   { id: 'total', label: 'Total Venta', width: 14 },
-  { id: 'cambio', label: 'Cambio', width: 12 }
+  { id: 'cambio', label: 'Cambio', width: 12 },
+  { id: 'saldo', label: 'Por Cobrar', width: 14 }
+];
+
+// CONDICIONES DE PAGO USADAS POR EL FILTRO Y POR LA COLUMNA "Condición"
+const CONDICIONES_EXCEL_VENTAS = [
+  { value: '', label: 'Condición: todas' },
+  { value: 'De contado', label: 'Condición: de contado' },
+  { value: 'A crédito (fiado)', label: 'Condición: a crédito (fiado)' },
+  { value: 'Crédito parcial', label: 'Condición: crédito parcial' }
 ];
 
 function obtenerColumnasExcelVentas() {
   let guardadas = null;
   try { guardadas = JSON.parse(localStorage.getItem('excelVentasColumnas')); } catch (e) { guardadas = null; }
   if (Array.isArray(guardadas) && guardadas.length) {
-    return guardadas.filter(id => COLUMNAS_EXCEL_VENTAS.some(c => c.id === id));
+    let sel = guardadas.filter(id => COLUMNAS_EXCEL_VENTAS.some(c => c.id === id));
+    COLUMNAS_EXCEL_VENTAS.forEach(c => { if (!sel.includes(c.id)) sel.push(c.id); });
+    return COLUMNAS_EXCEL_VENTAS.map(c => c.id).filter(id => sel.includes(id));
   }
   return COLUMNAS_EXCEL_VENTAS.map(c => c.id);
 }
@@ -5627,6 +5642,8 @@ function exportarExcelVentasClientes() {
 
   let fCat = (catEl && catEl.value) ? catEl.value : '';
   let fPro = (proEl && proEl.value) ? proEl.value : '';
+  let condEl = document.getElementById('filtroVentasCondicion');
+  let fCond = (condEl && condEl.value) ? condEl.value : '';
 
   if ((fCat || fPro) && (!window._clientesPagina || !window._clientesPagina.length)) {
     return Toast.fire({ title: "Excel Ventas", text: "Aún no se cargan los clientes; recarga la página e intenta de nuevo.", icon: "warning" });
@@ -5636,10 +5653,15 @@ function exportarExcelVentasClientes() {
   let hastaMs = new Date(hasta + 'T23:59:59.999') - 0;
 
   let mapaClientes = {};
-  (window._clientesPagina || []).forEach(c => { mapaClientes[c.id] = c; });
+  (window._clientesPagina || []).forEach(c => { mapaClientes[String(c.id)] = c; });
+  let clienteDeVenta = (v) => mapaClientes[String(v.clienteId != null && v.clienteId !== '' ? v.clienteId : (v.deudorId != null ? v.deudorId : ''))] || null;
 
-  let etiquetaFiltro = (fCat || fPro)
-    ? ' - ' + [fCat ? 'Cat: ' + fCat : '', fPro ? 'Proviene: ' + fPro : ''].filter(Boolean).join(' / ')
+  let etiquetaFiltro = (fCat || fPro || fCond)
+    ? ' - ' + [
+      fCat ? 'Cat: ' + fCat : '',
+      fPro ? 'Proviene: ' + fPro : '',
+      fCond ? 'Condición: ' + fCond : ''
+    ].filter(Boolean).join(' / ')
     : '';
 
   if (typeof socket === 'undefined' || !socket.emit) {
@@ -5655,11 +5677,11 @@ function exportarExcelVentasClientes() {
       if (d && d < desdeMs) return false;
       if (d && d > hastaMs) return false;
       if (fCat || fPro) {
-        let c = mapaClientes[v.clienteId || v.deudorId];
-        if (!c) return false;
-        if (fCat && String(c.categoria || '') !== fCat) return false;
-        if (fPro && String(c.proviene || '') !== fPro) return false;
+        let c = clienteDeVenta(v);
+        if (fCat && (!c || String(c.categoria || '') !== fCat)) return false;
+        if (fPro && (!c || String(c.proviene || '') !== fPro)) return false;
       }
+      if (fCond && condicionVenta(v) !== fCond) return false;
       return true;
     }).sort((a, b) => Number(a.date || 0) - Number(b.date || 0));
 
@@ -5690,11 +5712,20 @@ function exportarExcelVentasClientes() {
       if (v.total_recibido != null) return Number(v.total_recibido);
       return totalVenta(v);
     }
-    function tipoPagoVenta(v) {
+    // CONDICION DE PAGO SEGUN LO ACTUALMENTE REGISTRADO: v.type y v.digital NO se guardan en la venta, por eso se deduce de recibido vs total_pago
+    function condicionVenta(v) {
+      let total = totalVenta(v);
+      let recibido = recibidoVenta(v);
+      if (recibido <= 0) return 'A crédito (fiado)';
+      if (recibido < total - 0.005) return 'Crédito parcial';
+      return 'De contado';
+    }
+    function metodoPagoVenta(v) {
       if (v.digital) return 'Digital (' + v.digital + ')';
       if (v.type && String(v.type).toLowerCase() != 'efectivo') return 'Digital (' + v.type + ')';
       if (v.type) return String(v.type);
-      return 'Efectivo';
+      if (condicionVenta(v) != 'De contado') return 'A crédito (fiado)';
+      return 'De contado';
     }
     function fechaVenta(v) {
       let d = (v.date != null ? v.date : (v.cerrada || Date.now()));
@@ -5702,13 +5733,13 @@ function exportarExcelVentasClientes() {
     }
     function clienteVenta(v) {
       if (v.cliente) return String(v.cliente);
-      let c = mapaClientes[v.clienteId || v.deudorId];
+      let c = clienteDeVenta(v);
       if (c && c.name) return String(c.name);
       if (c && c.nombre) return String(c.nombre);
       return 'Consumidor Final';
     }
     function documentoCliente(v) {
-      let c = mapaClientes[v.clienteId || v.deudorId];
+      let c = clienteDeVenta(v);
       if (c && c.document != null) return String(c.document);
       if (c && c.doc != null) return String(c.doc);
       return '';
@@ -5718,7 +5749,7 @@ function exportarExcelVentasClientes() {
     let cols = COLUMNAS_EXCEL_VENTAS.filter(c => colIds.includes(c.id));
     let numCols = cols.length;
     if (!numCols) return Toast.fire({ title: "Excel Ventas", text: "Selecciona al menos una columna en 'Columnas'.", icon: "warning" });
-    let colsDinero = cols.map((c, idx) => c.id === 'recibido' || c.id === 'total' || c.id === 'cambio' ? idx + 2 : null).filter(n => n != null);
+    let colsDinero = cols.map((c, idx) => c.id === 'recibido' || c.id === 'total' || c.id === 'cambio' || c.id === 'saldo' ? idx + 2 : null).filter(n => n != null);
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'ACAPE';
@@ -5726,6 +5757,7 @@ function exportarExcelVentasClientes() {
 
     let sumRecibido = 0;
     let sumTotal = 0;
+    let sumSaldo = 0;
     let aoa = [
       ['VENTAS' + etiquetaFiltro],
       ['Rango de fechas', desde + ' a ' + hasta],
@@ -5744,31 +5776,38 @@ function exportarExcelVentasClientes() {
       });
       let total = totalVenta(v);
       let recibido = recibidoVenta(v);
-      let cambio = recibido - total;
+      let saldo = Math.max(0, Math.round((total - recibido) * 100) / 100);
+      let esContado = recibido >= total - 0.005;
+      let celdaCambio = esContado
+        ? (Math.abs(recibido - total) < 0.005 ? '---' : Math.round((recibido - total) * 100) / 100)
+        : 'Sin cambio';
       let textoRecibido = recibido === 0 ? 'FIADO' : (Math.abs(recibido - total) < 0.005 ? '---' : recibido);
       sumRecibido += recibido;
       sumTotal += total;
+      sumSaldo += saldo;
       let val = {};
       cols.forEach(c => {
         val[c.id] = c.id === 'unidades' ? Math.round(unidades * 1000) / 1000
           : c.id === 'productos' ? txt.join('; ')
           : c.id === 'recibido' ? textoRecibido
-          : c.id === 'cambio' ? (Math.abs(cambio) < 0.005 ? '---' : cambio)
+          : c.id === 'cambio' ? celdaCambio
+          : c.id === 'saldo' ? (saldo < 0.005 ? '---' : saldo)
           : c.id === 'total' ? total
           : c.id === 'fecha' ? fechaVenta(v)
-          : c.id === 'tipo' ? tipoPagoVenta(v)
+          : c.id === 'tipo' ? metodoPagoVenta(v)
+          : c.id === 'condicion' ? condicionVenta(v)
           : c.id === 'cliente' ? clienteVenta(v)
           : c.id === 'documento' ? documentoCliente(v)
           : '';
       });
       aoa.push([i + 1, ...cols.map(c => val[c.id])]);
     });
-    let cambioTotal = sumRecibido - sumTotal;
     let tot = {};
     cols.forEach(c => {
       tot[c.id] = c.id === 'recibido' ? sumRecibido
         : c.id === 'total' ? sumTotal
-        : c.id === 'cambio' ? (Math.abs(cambioTotal) < 0.005 ? '---' : cambioTotal)
+        : c.id === 'cambio' ? '---'
+        : c.id === 'saldo' ? sumSaldo
         : '';
     });
     aoa.push(['TOTAL', ...cols.map(c => tot[c.id])]);
@@ -5820,13 +5859,14 @@ function exportarExcelVentasClientes() {
       let cid = (v.clienteId != null && String(v.clienteId) !== '') ? v.clienteId
         : ((v.deudorId != null && String(v.deudorId) !== '') ? v.deudorId : null);
       let key = cid == null ? 'cf' : ('id:' + cid);
-      let g = grupos[key] || (grupos[key] = { key, cid, nombre: '', doc: '', fecha: 0, n: 0, unidades: 0, recibido: 0, total: 0 });
+      let g = grupos[key] || (grupos[key] = { key, cid, nombre: '', doc: '', fecha: 0, n: 0, unidades: 0, recibido: 0, total: 0, saldo: 0 });
       g.n++;
       let unidades = 0;
       productosDeVenta(v).forEach(p => { unidades += lineaProducto(p).cantidad; });
       g.unidades += unidades;
       g.recibido += recibidoVenta(v);
       g.total += totalVenta(v);
+      g.saldo += Math.max(0, Math.round((totalVenta(v) - recibidoVenta(v)) * 100) / 100);
       let d = Number(v.date || 0);
       if (d > g.fecha) g.fecha = d;
     });
@@ -5841,7 +5881,7 @@ function exportarExcelVentasClientes() {
     });
     garr.sort((a, b) => (b.total - a.total) || (b.recibido - a.recibido));
 
-    let totalUnidades = 0, totalRecibido = 0, totalTotal = 0;
+    let totalUnidades = 0, totalRecibido = 0, totalTotal = 0, totalSaldo = 0;
     let aoaTotales = [
       ['TOTALES POR CLIENTE' + etiquetaFiltro],
       ['Rango de fechas', desde + ' a ' + hasta],
@@ -5851,32 +5891,38 @@ function exportarExcelVentasClientes() {
       ['#', ...cols.map(c => c.label)]
     ];
     garr.forEach((g, i) => {
-      let cambio = g.recibido - g.total;
+      let condicionGrupo = g.saldo < 0.005 ? 'De contado' : 'A crédito (fiado)';
+      let celdaCambioGrupo = g.saldo < 0.005
+        ? (Math.abs(g.recibido - g.total) < 0.005 ? '---' : Math.round((g.recibido - g.total) * 100) / 100)
+        : 'Sin cambio';
       totalUnidades += g.unidades;
       totalRecibido += g.recibido;
       totalTotal += g.total;
+      totalSaldo += g.saldo;
       let val = {};
       cols.forEach(c => {
         val[c.id] = c.id === 'cliente' ? g.nombre
           : c.id === 'documento' ? g.doc
           : c.id === 'fecha' ? (g.fecha ? new Date(g.fecha).toLocaleString() : '')
           : c.id === 'tipo' ? ''
+          : c.id === 'condicion' ? condicionGrupo
           : c.id === 'productos' ? ''
           : c.id === 'unidades' ? Math.round(g.unidades * 1000) / 1000
           : c.id === 'recibido' ? g.recibido
           : c.id === 'total' ? g.total
-          : c.id === 'cambio' ? (Math.abs(cambio) < 0.005 ? '---' : cambio)
+          : c.id === 'cambio' ? celdaCambioGrupo
+          : c.id === 'saldo' ? (g.saldo < 0.005 ? '---' : g.saldo)
           : '';
       });
       aoaTotales.push([i + 1, ...cols.map(c => val[c.id])]);
     });
-    let cambioTotalTotal = totalRecibido - totalTotal;
     let totG = {};
     cols.forEach(c => {
       totG[c.id] = c.id === 'unidades' ? Math.round(totalUnidades * 1000) / 1000
         : c.id === 'recibido' ? totalRecibido
         : c.id === 'total' ? totalTotal
-        : c.id === 'cambio' ? (Math.abs(cambioTotalTotal) < 0.005 ? '---' : cambioTotalTotal)
+        : c.id === 'cambio' ? '---'
+        : c.id === 'saldo' ? totalSaldo
         : '';
     });
     aoaTotales.push(['TOTAL', ...cols.map(c => totG[c.id])]);

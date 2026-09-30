@@ -6,8 +6,8 @@
 		"apikey": "1008185"
 	},
 	"gramera": {
-		"port": "/dev/pts/4",
-		"baudRate": 9600,
+		"port": "/dev/pts/5",
+		"baudRate": 4800,
 		"debug": false
 	},
 	"tunnel": {
