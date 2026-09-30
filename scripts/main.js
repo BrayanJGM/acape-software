@@ -5569,6 +5569,15 @@ const COLUMNAS_EXCEL_VENTAS = [
   { id: 'saldo', label: 'Por Cobrar', width: 14 }
 ];
 
+// COLUMNAS DE LA HOJA "Totales": SOLO IDENTIFICACION DEL CLIENTE Y LOS TRES MONTOS
+const COLUMNAS_EXCEL_TOTALES = [
+  { id: 'cliente', label: 'Cliente', width: 42 },
+  { id: 'documento', label: 'Documento', width: 26 },
+  { id: 'total', label: 'Total vendido al cliente', width: 22, dinero: true },
+  { id: 'deuda', label: 'En Deuda', width: 16, dinero: true },
+  { id: 'contado', label: 'A Contado', width: 16, dinero: true }
+];
+
 // CONDICIONES DE PAGO USADAS POR EL FILTRO Y POR LA COLUMNA "Condición"
 const CONDICIONES_EXCEL_VENTAS = [
   { value: '', label: 'Condición: todas' },
@@ -5577,32 +5586,62 @@ const CONDICIONES_EXCEL_VENTAS = [
   { value: 'Crédito parcial', label: 'Condición: crédito parcial' }
 ];
 
+// PREFERENCIAS DE COLUMNAS. SE GUARDAN { cols, known } PARA PODER SEPARAR
+// "COLUMNA QUE EL USUARIO QUITO A PROPOSITO" DE "COLUMNA NUEVA QUE DEBE APARECER UNA VEZ".
+const TODAS_IDS_COLUMNAS = {
+  excelVentasColumnas: COLUMNAS_EXCEL_VENTAS.map(c => c.id),
+  excelTotalesColumnas: COLUMNAS_EXCEL_TOTALES.map(c => c.id)
+};
+
+function leerPreferenciasColumnas(clave) {
+  try {
+    let crudo = JSON.parse(localStorage.getItem(clave));
+    if (!crudo || typeof crudo !== 'object' || Array.isArray(crudo)) return null;
+    return { cols: Array.isArray(crudo.cols) ? crudo.cols : [], known: Array.isArray(crudo.known) ? crudo.known : [] };
+  } catch (e) { return null; }
+}
+
+function guardarPreferenciasColumnas(clave, cols) {
+  localStorage.setItem(clave, JSON.stringify({ cols, known: TODAS_IDS_COLUMNAS[clave] || [] }));
+}
+
+function obtenerColumnas(guardadas, definicion) {
+  if (!guardadas || !guardadas.cols.length) return definicion.map(c => c.id);
+  let sel = guardadas.cols.filter(id => definicion.some(c => c.id === id));
+  definicion.forEach(c => { if (!sel.includes(c.id) && !guardadas.known.includes(c.id)) sel.push(c.id); });
+  return definicion.map(c => c.id).filter(id => sel.includes(id));
+}
+
 function obtenerColumnasExcelVentas() {
-  let guardadas = null;
-  try { guardadas = JSON.parse(localStorage.getItem('excelVentasColumnas')); } catch (e) { guardadas = null; }
-  if (Array.isArray(guardadas) && guardadas.length) {
-    let sel = guardadas.filter(id => COLUMNAS_EXCEL_VENTAS.some(c => c.id === id));
-    COLUMNAS_EXCEL_VENTAS.forEach(c => { if (!sel.includes(c.id)) sel.push(c.id); });
-    return COLUMNAS_EXCEL_VENTAS.map(c => c.id).filter(id => sel.includes(id));
-  }
-  return COLUMNAS_EXCEL_VENTAS.map(c => c.id);
+  return obtenerColumnas(leerPreferenciasColumnas('excelVentasColumnas'), COLUMNAS_EXCEL_VENTAS);
+}
+
+function obtenerColumnasExcelTotales() {
+  return obtenerColumnas(leerPreferenciasColumnas('excelTotalesColumnas'), COLUMNAS_EXCEL_TOTALES);
 }
 
 function selectorColumnasExcelVentas() {
-  let cols = obtenerColumnasExcelVentas();
+  let colsVentas = obtenerColumnasExcelVentas();
+  let colsTotales = obtenerColumnasExcelTotales();
+  const bloque = (titulo, definicion, sel, clase, marcar) => `
+    <hr>
+    <p class="mb-1"><strong>${titulo}</strong></p>
+    <div class="mb-2">
+      <button class="btn btn-outline-secondary btn-sm" onclick="${marcar}(true)">Todas</button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="${marcar}(false)">Ninguna</button>
+    </div>
+    <div class="d-flex flex-column">
+      ${definicion.map(c => `<label class="mb-1"><input type="checkbox" value="${c.id}" class="${clase}" ${sel.includes(c.id) ? 'checked' : ''}> ${c.label}</label>`).join('')}
+    </div>`;
+
   popup.open({
     title: 'Columnas del Excel de ventas',
     content: `
       <div>
-        <p class="small text-muted">Marca las columnas que quieres que aparezcan en el Excel:</p>
-        <div class="mb-2">
-          <button class="btn btn-outline-secondary btn-sm" onclick="marcarColumnasExcelVentas(true)">Todas</button>
-          <button class="btn btn-outline-secondary btn-sm" onclick="marcarColumnasExcelVentas(false)">Ninguna</button>
-        </div>
-        <div class="d-flex flex-column">
-          ${COLUMNAS_EXCEL_VENTAS.map(c => `<label class="mb-1"><input type="checkbox" value="${c.id}" class="col-excel-ventas" ${cols.includes(c.id) ? 'checked' : ''}> ${c.label}</label>`).join('')}
-        </div>
-        <br>
+        <p class="small text-muted">Marca las columnas que quieres que aparezcan. Cada hoja se controla por separado.</p>
+        ${bloque('Hoja "Ventas"', COLUMNAS_EXCEL_VENTAS, colsVentas, 'col-excel-ventas', 'marcarColumnasExcelVentas')}
+        ${bloque('Hoja "Totales" (por cliente)', COLUMNAS_EXCEL_TOTALES, colsTotales, 'col-excel-totales', 'marcarColumnasExcelTotales')}
+        <hr>
         <button class="btn btn-outline-success" onclick="guardarColumnasExcelVentas()">Guardar</button>
         <button class="btn btn-outline-secondary" onclick="popup.close()">Cancelar</button>
       </div>`
@@ -5613,12 +5652,21 @@ function marcarColumnasExcelVentas(todas) {
   document.querySelectorAll('.col-excel-ventas').forEach(cb => { cb.checked = todas; });
 }
 
+function marcarColumnasExcelTotales(todas) {
+  document.querySelectorAll('.col-excel-totales').forEach(cb => { cb.checked = todas; });
+}
+
 function guardarColumnasExcelVentas() {
-  const sel = Array.from(document.querySelectorAll('.col-excel-ventas:checked')).map(cb => cb.value);
-  if (!sel.length) {
-    return Toast.fire({ title: "Columnas", text: "Selecciona al menos una columna.", icon: "warning" });
+  const selVentas = Array.from(document.querySelectorAll('.col-excel-ventas:checked')).map(cb => cb.value);
+  const selTotales = Array.from(document.querySelectorAll('.col-excel-totales:checked')).map(cb => cb.value);
+  if (!selVentas.length) {
+    return Toast.fire({ title: "Columnas", text: "Selecciona al menos una columna para la hoja Ventas.", icon: "warning" });
   }
-  localStorage.setItem('excelVentasColumnas', JSON.stringify(sel));
+  if (!selTotales.length) {
+    return Toast.fire({ title: "Columnas", text: "Selecciona al menos una columna para la hoja Totales.", icon: "warning" });
+  }
+  guardarPreferenciasColumnas('excelVentasColumnas', selVentas);
+  guardarPreferenciasColumnas('excelTotalesColumnas', selTotales);
   popup.close();
   Toast.fire({ title: "Columnas", text: "Preferencias guardadas para el próximo Excel.", icon: "success" });
 }
@@ -5751,6 +5799,11 @@ function exportarExcelVentasClientes() {
     if (!numCols) return Toast.fire({ title: "Excel Ventas", text: "Selecciona al menos una columna en 'Columnas'.", icon: "warning" });
     let colsDinero = cols.map((c, idx) => c.id === 'recibido' || c.id === 'total' || c.id === 'cambio' || c.id === 'saldo' ? idx + 2 : null).filter(n => n != null);
 
+    let colIdsTotales = obtenerColumnasExcelTotales();
+    let colsTotales = COLUMNAS_EXCEL_TOTALES.filter(c => colIdsTotales.includes(c.id));
+    let numColsTotales = colsTotales.length;
+    let colsDineroTotales = colsTotales.map((c, idx) => c.dinero ? idx + 2 : null).filter(n => n != null);
+
     const wb = new ExcelJS.Workbook();
     wb.creator = 'ACAPE';
     wb.created = new Date();
@@ -5812,7 +5865,11 @@ function exportarExcelVentasClientes() {
     });
     aoa.push(['TOTAL', ...cols.map(c => tot[c.id])]);
 
-    function estilizarHoja(hoja, aoa) {
+    function estilizarHoja(hoja, aoa, opciones) {
+      const cfg = opciones || {};
+      const colsHoja = cfg.cols || [];
+      const numColsHoja = cfg.numCols || colsHoja.length;
+      const colsDineroHoja = cfg.colsDinero || [];
       aoa.forEach((fila, i) => {
         const row = hoja.addRow(fila);
         if (i === 0) {
@@ -5820,7 +5877,7 @@ function exportarExcelVentasClientes() {
           t.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
           t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
           t.alignment = { horizontal: 'center', vertical: 'middle' };
-          hoja.mergeCells(1, 1, 1, numCols + 1);
+          hoja.mergeCells(1, 1, 1, numColsHoja + 1);
         } else if (i === 5) {
           row.eachCell((c) => {
             c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -5828,7 +5885,7 @@ function exportarExcelVentasClientes() {
             c.alignment = { horizontal: 'center', vertical: 'middle' };
           });
         } else {
-          colsDinero.forEach((cin) => {
+          colsDineroHoja.forEach((cin) => {
             const celda = row.getCell(cin);
             if (typeof celda.value === 'number') {
               celda.numFmt = '#,##0';
@@ -5845,25 +5902,22 @@ function exportarExcelVentasClientes() {
           }
         }
       });
-      let idxProductos = cols.findIndex(c => c.id === 'productos');
+      let idxProductos = colsHoja.findIndex(c => c.id === 'productos');
       if (idxProductos !== -1) hoja.getColumn(idxProductos + 2).alignment = { wrapText: true };
       hoja.views = [{ state: 'frozen', ySplit: 6 }];
     }
 
     let hoja = wb.addWorksheet('Ventas');
     hoja.columns = [{ width: 6 }, ...cols.map(c => ({ width: c.width }))];
-    estilizarHoja(hoja, aoa);
+    estilizarHoja(hoja, aoa, { cols, numCols, colsDinero });
 
     let grupos = {};
     ventas.forEach((v) => {
       let cid = (v.clienteId != null && String(v.clienteId) !== '') ? v.clienteId
         : ((v.deudorId != null && String(v.deudorId) !== '') ? v.deudorId : null);
       let key = cid == null ? 'cf' : ('id:' + cid);
-      let g = grupos[key] || (grupos[key] = { key, cid, nombre: '', doc: '', fecha: 0, n: 0, unidades: 0, recibido: 0, total: 0, saldo: 0 });
+      let g = grupos[key] || (grupos[key] = { key, cid, nombre: '', doc: '', fecha: 0, n: 0, recibido: 0, total: 0, saldo: 0 });
       g.n++;
-      let unidades = 0;
-      productosDeVenta(v).forEach(p => { unidades += lineaProducto(p).cantidad; });
-      g.unidades += unidades;
       g.recibido += recibidoVenta(v);
       g.total += totalVenta(v);
       g.saldo += Math.max(0, Math.round((totalVenta(v) - recibidoVenta(v)) * 100) / 100);
@@ -5881,55 +5935,47 @@ function exportarExcelVentasClientes() {
     });
     garr.sort((a, b) => (b.total - a.total) || (b.recibido - a.recibido));
 
-    let totalUnidades = 0, totalRecibido = 0, totalTotal = 0, totalSaldo = 0;
+    let totalTotal = 0, totalDeuda = 0, totalContado = 0;
     let aoaTotales = [
       ['TOTALES POR CLIENTE' + etiquetaFiltro],
       ['Rango de fechas', desde + ' a ' + hasta],
       ['Generado el', new Date().toLocaleString()],
       ['Clientes en rango', garr.length],
       [],
-      ['#', ...cols.map(c => c.label)]
+      ['#', ...colsTotales.map(c => c.label)]
     ];
     garr.forEach((g, i) => {
-      let condicionGrupo = g.saldo < 0.005 ? 'De contado' : 'A crédito (fiado)';
-      let celdaCambioGrupo = g.saldo < 0.005
-        ? (Math.abs(g.recibido - g.total) < 0.005 ? '---' : Math.round((g.recibido - g.total) * 100) / 100)
-        : 'Sin cambio';
-      totalUnidades += g.unidades;
-      totalRecibido += g.recibido;
+      // Deuda = saldo de las ventas DENTRO del rango. Contado se deriva del total
+      // para que SIEMPRE se cumpla: Total vendido = En Deuda + A Contado.
+      let deudaGrupo = g.saldo < 0.005 ? 0 : g.saldo;
+      let contadoGrupo = g.total - deudaGrupo;
+      if (contadoGrupo < 0.005) contadoGrupo = 0;
       totalTotal += g.total;
-      totalSaldo += g.saldo;
+      totalDeuda += deudaGrupo;
+      totalContado += contadoGrupo;
       let val = {};
-      cols.forEach(c => {
+      colsTotales.forEach(c => {
         val[c.id] = c.id === 'cliente' ? g.nombre
           : c.id === 'documento' ? g.doc
-          : c.id === 'fecha' ? (g.fecha ? new Date(g.fecha).toLocaleString() : '')
-          : c.id === 'tipo' ? ''
-          : c.id === 'condicion' ? condicionGrupo
-          : c.id === 'productos' ? ''
-          : c.id === 'unidades' ? Math.round(g.unidades * 1000) / 1000
-          : c.id === 'recibido' ? g.recibido
           : c.id === 'total' ? g.total
-          : c.id === 'cambio' ? celdaCambioGrupo
-          : c.id === 'saldo' ? (g.saldo < 0.005 ? '---' : g.saldo)
+          : c.id === 'deuda' ? deudaGrupo
+          : c.id === 'contado' ? contadoGrupo
           : '';
       });
-      aoaTotales.push([i + 1, ...cols.map(c => val[c.id])]);
+      aoaTotales.push([i + 1, ...colsTotales.map(c => val[c.id])]);
     });
     let totG = {};
-    cols.forEach(c => {
-      totG[c.id] = c.id === 'unidades' ? Math.round(totalUnidades * 1000) / 1000
-        : c.id === 'recibido' ? totalRecibido
-        : c.id === 'total' ? totalTotal
-        : c.id === 'cambio' ? '---'
-        : c.id === 'saldo' ? totalSaldo
+    colsTotales.forEach(c => {
+      totG[c.id] = c.id === 'total' ? totalTotal
+        : c.id === 'deuda' ? totalDeuda
+        : c.id === 'contado' ? totalContado
         : '';
     });
-    aoaTotales.push(['TOTAL', ...cols.map(c => totG[c.id])]);
+    aoaTotales.push(['TOTAL', ...colsTotales.map(c => totG[c.id])]);
 
     let hojaTotales = wb.addWorksheet('Totales');
-    hojaTotales.columns = [{ width: 6 }, ...cols.map(c => ({ width: c.width }))];
-    estilizarHoja(hojaTotales, aoaTotales);
+    hojaTotales.columns = [{ width: 6 }, ...colsTotales.map(c => ({ width: c.width }))];
+    estilizarHoja(hojaTotales, aoaTotales, { cols: colsTotales, numCols: numColsTotales, colsDinero: colsDineroTotales });
 
     const nombreArchivo = 'Ventas ' + desde + ' a ' + hasta + (etiquetaFiltro ? ' (filtrado)' : '') + '.xlsx';
     wb.xlsx.writeBuffer().then((buffer) => {
