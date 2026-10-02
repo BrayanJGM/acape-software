@@ -1859,7 +1859,6 @@ class Database {
 		let clientes = this.db.getData('/data/simple/clientes');
 		let products = this.db.getData('/data/simple/products', ['log']);
 
-		// Índice por nombre en minúsculas para asociar costos e IDs
 		let productosPorNombre = {};
 		converterArray(products).forEach(producto => {
 			if (producto && producto.name != null) {
@@ -1867,29 +1866,22 @@ class Database {
 			}
 		});
 
-		let ventasMap = new Map();
+		let ventas = {};
 
 		converterArray(clientes).forEach(cliente => {
 			if (!cliente) return;
 
 			converterArray(cliente.compras || []).forEach(compra => {
-				if (!compra) return;
+				if (!compra || compra.ventaId == null) return;
 
-				// Si compra.ventaId no existe, generas una clave compuesta para no perderla
-				let key = compra.ventaId != null ? String(compra.ventaId) : `${cliente.id}_${compra.fecha}`;
+				// Clave única combinando el cliente y la venta para evitar que se pisen entre sí
+				let key = `${cliente.id}_${compra.ventaId}`;
 
-				// Evitamos duplicar solo si la clave ya existe
-				if (ventasMap.has(key)) return;
-
-				ventasMap.set(key, this._normalizarCompraAVenta(compra, cliente, productosPorNombre));
+				ventas[key] = this._normalizarCompraAVenta(compra, cliente, productosPorNombre);
 			});
 		});
 
-		// Convertimos el Map a un Array para responder una lista limpia
-		return { 
-			message: "Lista de todas las ventas de los clientes", 
-			data: Array.from(ventasMap.values()) 
-		};
+		return { message: "Lista de todas las ventas de los clientes", data: ventas };
 	}
 
 	// -------------------------------------------------------------------------------
