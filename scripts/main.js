@@ -5895,8 +5895,8 @@ function exportarExcelVentasClientes() {
     return Toast.fire({ title: "Excel Ventas", text: "La conexión no está activa; recarga la página.", icon: "error" });
   }
 
-  socket.emit('getAllVentas', { token: sessionStorage.getItem('acape-session') });
-  socket.once('getAllVentas', (data) => {
+  socket.emit('getAllClientesVentas', { token: sessionStorage.getItem('acape-session') });
+  socket.once('getAllClientesVentas', (data) => {
     if (!data.data) return Toast.fire({ title: "Excel Ventas", text: data.message || "No se pudieron cargar las ventas.", icon: "error" });
 
     let ventas = converterArray(data.data).filter(v => {
