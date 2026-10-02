@@ -1856,8 +1856,8 @@ class Database {
 		let validateUser = this.validatePerms(data, 'view');
 		if (!validateUser) return { message: "No tienes permisos suficientes para ver las ventas" };
 
-		let clientes = this.db.getData('/data/simple/clientes');
-		let products = this.db.getData('/data/simple/products', ['log']);
+		let clientes = this.db.getData('/data/simple/clientes') || [];
+		let products = this.db.getData('/data/simple/products', ['log']) || [];
 
 		let productosPorNombre = {};
 		converterArray(products).forEach(producto => {
@@ -1866,13 +1866,12 @@ class Database {
 			}
 		});
 
-		let ventas = {};
+		let ventas = [];
 		let contadorGlobal = 1;
 
 		converterArray(clientes).forEach(cliente => {
 			if (!cliente) return;
 
-			// Leemos las compras del cliente soportando array u objeto
 			let comprasCliente = converterArray(cliente.compras || {});
 
 			comprasCliente.forEach(compra => {
@@ -1880,11 +1879,12 @@ class Database {
 
 				let ventaNormalizada = this._normalizarCompraAVenta(compra, cliente, productosPorNombre);
 
-				// CLAVE ÚNICA OBLIGATORIA: Previene que la venta de un cliente
-				// pise la venta con mismo ID de otro cliente en el Excel.
-				let key = `${cliente.id}_${compra.ventaId || contadorGlobal++}`;
+				// Asegurar un clienteId en la venta para el mapeo en el frontend
+				if (!ventaNormalizada.clienteId && cliente.id) {
+					ventaNormalizada.clienteId = cliente.id;
+				}
 
-				ventas[key] = ventaNormalizada;
+				ventas.push(ventaNormalizada);
 			});
 		});
 

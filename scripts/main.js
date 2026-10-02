@@ -5899,28 +5899,59 @@ function exportarExcelVentasClientes() {
   socket.once('getAllClientesVentas', (data) => {
     if (!data.data) return Toast.fire({ title: "Excel Ventas", text: data.message || "No se pudieron cargar las ventas.", icon: "error" });
 
-    let ventas = converterArray(data.data).filter(v => {
-      // Normalización robusta de la fecha
+    let rawVentas = converterArray(data.data);
+    console.log("Ventas recibidas del servidor:", rawVentas.length);
+
+    let ventas = rawVentas.filter(v => {
+      // 1. EXTRAER FECHA EN MILISEGUNDOS DE CUALQUIER FORMATO
+      let rawDate = v.date || v.fecha || v.cerrada || v.created_at;
       let d = 0;
-      if (typeof v.date === 'number') d = v.date;
-      else if (typeof v.date === 'string') {
-        d = new Date(v.date.includes('T') ? v.date : v.date.replace(/-/g, '/') + ' 00:00:00').getTime();
+
+      if (typeof rawDate === 'number') {
+        d = rawDate;
+      } else if (typeof rawDate === 'string') {
+        let trimmed = rawDate.trim();
+        if (!isNaN(trimmed) && trimmed !== '') {
+          d = Number(trimmed); // Si venía como string de milisegundos "1725148800000"
+        } else {
+          d = new Date(trimmed.includes('T') ? trimmed : trimmed.replace(/-/g, '/') + ' 00:00:00').getTime();
+        }
       }
-      if (!d && v.fecha) d = new Date(v.fecha).getTime();
 
-      if (d && d < desdeMs) return false;
-      if (d && d > hastaMs) return false;
+      // Si sigue sin haber fecha, usar la fecha actual para no perder la venta en el reporte
+      if (!d || isNaN(d)) d = Date.now();
 
+      // 2. FILTRAR POR FECHA
+      if (d < desdeMs || d > hastaMs) return false;
+
+      // 3. FILTRAR POR CATEGORÍA / PROVIENE
       if (fCat || fPro) {
         let c = clienteDeVenta(v);
-        if (fCat && (!c || String(c.categoria || '') !== fCat)) return false;
-        if (fPro && (!c || String(c.proviene || '') !== fPro)) return false;
+        if (fCat && (!c || String(c.categoria || '').trim() !== fCat)) return false;
+        if (fPro && (!c || String(c.proviene || '').trim() !== fPro)) return false;
       }
-      if (fCond && condicionVenta(v) !== fCond) return false;
-      return true;
-    }).sort((a, b) => Number(a.date || 0) - Number(b.date || 0));
 
-    if (!ventas.length) return Toast.fire({ title: "Excel Ventas", text: "No hay ventas con los filtros seleccionados.", icon: "warning" });
+      // 4. FILTRAR POR CONDICIÓN
+      if (fCond && condicionVenta(v) !== fCond) return false;
+
+      return true;
+    }).sort((a, b) => {
+      let dA = Number(a.date || a.fecha || 0);
+      let dB = Number(b.date || b.fecha || 0);
+      return dA - dB;
+    });
+
+    console.log("Ventas filtradas a exportar:", ventas.length);
+
+    if (!ventas.length) {
+      return Toast.fire({ 
+        title: "Excel Ventas", 
+        text: `No hay ventas registradas en el rango seleccionado (${desde} a ${hasta}).`, 
+        icon: "warning" 
+      });
+    }
+    
+    // ... resto del código para generar el ExcelJS ...
 
     function productosDeVenta(v) {
       let arr = Array.isArray(v.products) ? v.products
