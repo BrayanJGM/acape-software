@@ -1859,6 +1859,7 @@ class Database {
 		let clientes = this.db.getData('/data/simple/clientes');
 		let products = this.db.getData('/data/simple/products', ['log']);
 
+		// Índice por nombre en minúsculas
 		let productosPorNombre = {};
 		converterArray(products).forEach(producto => {
 			if (producto && producto.name != null) {
@@ -1867,17 +1868,28 @@ class Database {
 		});
 
 		let ventas = {};
+		let contadorVenta = 1;
 
 		converterArray(clientes).forEach(cliente => {
 			if (!cliente) return;
 
-			converterArray(cliente.compras || []).forEach(compra => {
-				if (!compra || compra.ventaId == null) return;
+			// IMPORTANTE: Se usa {} como fallback y converterArray para convertir
+			// el objeto/array de compras en una lista recorrible.
+			let comprasCliente = converterArray(cliente.compras || {});
 
-				// Clave única combinando el cliente y la venta para evitar que se pisen entre sí
-				let key = `${cliente.id}_${compra.ventaId}`;
+			comprasCliente.forEach(compra => {
+				if (!compra) return;
 
-				ventas[key] = this._normalizarCompraAVenta(compra, cliente, productosPorNombre);
+				// Normalizamos la compra a la estructura de venta
+				let ventaNormalizada = this._normalizarCompraAVenta(compra, cliente, productosPorNombre);
+
+				// Determinamos la clave para el objeto 'ventas' del frontend
+				// Si compra.ventaId existe usamos ese, si no, usamos una clave única para no perderla.
+				let key = (compra.ventaId != null && compra.ventaId !== '') 
+					? compra.ventaId 
+					: `${cliente.id}_${compra.fecha || contadorVenta++}`;
+
+				ventas[key] = ventaNormalizada;
 			});
 		});
 
