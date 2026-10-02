@@ -43,7 +43,31 @@ const GrameraUI = (function () {
           <button class="btn btn-outline-warning gramera-ui-detectar"><i class="fa-solid fa-magnifying-glass"></i> Detectar velocidad automáticamente</button>
           <button class="btn btn-outline-danger gramera-ui-desconectar"><i class="fa-solid fa-unplug"></i> Desconectar</button>
           <button class="btn btn-outline-secondary gramera-ui-actualizar"><i class="fa-solid fa-rotate"></i> Actualizar puertos</button>
+          <button class="btn btn-outline-primary gramera-ui-recuperar"><i class="fa-solid fa-life-ring"></i> Recuperar conexión</button>
         </div>
+        <div class="form-text small mt-1">
+          Si la gramera queda en ámbar, "Recuperar conexión" busca el puerto real de nuevo.
+          Es lo que hace el servidor solo cada 30 s.
+        </div>
+
+        <details class="border rounded p-2 mt-3">
+          <summary class="fw-bold" style="cursor:pointer"><i class="fa-solid fa-stopwatch"></i> Tolerancia de "sin datos"</summary>
+          <p class="small text-muted mt-2 mb-2">
+            Una balanza en modo normal solo envía datos cuando cambia el peso. Estos valores
+            controlan cuándo se deja de esperar lectura.
+          </p>
+          <div class="row g-2 align-items-end">
+            <div class="col-6">
+              <label class="form-label small mb-0">Esperar lectura (ms)</label>
+              <input type="number" min="2000" step="1000" class="form-control form-control-sm gramera-ui-tm-lectura">
+            </div>
+            <div class="col-6">
+              <label class="form-label small mb-0">Esperar trama (ms)</label>
+              <input type="number" min="2000" step="1000" class="form-control form-control-sm gramera-ui-tm-trama">
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline-primary mt-2 gramera-ui-tm-guardar">Aplicar</button>
+        </details>
 
         <details class="border rounded p-3 mt-3 gramera-test-details">
           <summary class="fw-bold" style="cursor:pointer"><i class="fa-solid fa-flask-vial"></i> Validación de pesaje</summary>
@@ -104,6 +128,8 @@ const GrameraUI = (function () {
     el.querySelector('.gramera-ui-detectar').addEventListener('click', () => detectarVelocidad(el));
     el.querySelector('.gramera-ui-desconectar').addEventListener('click', () => desconectar(el));
     el.querySelector('.gramera-ui-actualizar').addEventListener('click', () => cargarTodo(el, true));
+    el.querySelector('.gramera-ui-recuperar').addEventListener('click', () => recuperar(el));
+    el.querySelector('.gramera-ui-tm-guardar').addEventListener('click', () => guardarTiempos(el));
 
     el.querySelector('.gramera-test-reset').addEventListener('click', () => limpiarTests(el));
     el.querySelector('.gramera-trazas-refrescar').addEventListener('click', () => cargarTrazas(el));
@@ -149,6 +175,11 @@ const GrameraUI = (function () {
       el.querySelector('.gramera-ui-baud').value = config.baudRate;
       el.querySelector('.gramera-ui-debug').checked = !!config.debug;
 
+      const tmLectura = el.querySelector('.gramera-ui-tm-lectura');
+      const tmTrama = el.querySelector('.gramera-ui-tm-trama');
+      if (tmLectura) tmLectura.value = config.timeoutLecturaMs || 20000;
+      if (tmTrama) tmTrama.value = config.timeoutTramaMs || 15000;
+
       if (conMensaje) mostrarMsg(el, 'Puertos actualizados.');
 
       renderPuertos(el, ports, actual);
@@ -187,6 +218,32 @@ const GrameraUI = (function () {
           <span class="small text-muted">${esc(desc)}</span>
         </label>`;
     }).join('');
+  }
+
+  // RECUPERAR CONEXION: re-descubre el puerto real de la gramera sin que el
+// usuario tenga que desconectar/cablear a mano. Mismo camino que el watchdog.
+  function recuperar(el) {
+    mostrarMsg(el, 'Buscando el puerto real de la gramera...');
+    axios.post('/gramera/recuperar', {}).then((resp) => {
+      Toast.fire({ text: resp.data.mensaje || 'Gramera recuperada', icon: 'success' });
+      mostrarMsg(el, resp.data.mensaje || 'Gramera recuperada.');
+      return cargarTodo(el);
+    }).catch((err) => {
+      const m = (err.response && err.response.data && err.response.data.mensaje) || err.message;
+      mostrarMsg(el, 'No se pudo recuperar: ' + m, true);
+    });
+  }
+
+  function guardarTiempos(el) {
+    const lectura = Number(el.querySelector('.gramera-ui-tm-lectura').value);
+    const trama = Number(el.querySelector('.gramera-ui-tm-trama').value);
+    if (!Number.isFinite(lectura) || lectura < 2000 || !Number.isFinite(trama) || trama < 2000) {
+      return mostrarMsg(el, 'Ambos valores deben ser 2000 ms o más.', true);
+    }
+    axios.post('/gramera/timeouts', { lecturaMs: lectura, tramaMs: trama }).then((resp) => {
+      Toast.fire({ text: resp.data.mensaje || 'Tiempos aplicados', icon: 'success' });
+      mostrarMsg(el, resp.data.mensaje || 'Tiempos aplicados.');
+    }).catch(() => mostrarMsg(el, 'Error guardando los tiempos', true));
   }
 
   function conectar(el) {
@@ -392,27 +449,36 @@ const GrameraUI = (function () {
       const s = resp.data;
       let html;
 
-      if (!s.conectada) {
+      // El backend separa los estados reales. Antes todo caia en un solo
+      // "sin lectura" que no distinguia "llega y no se lee" de "no llega nada".
+      if (s.estado === 'desconectada') {
         html = `
           <span class="badge bg-danger"><i class="fa-solid fa-unlink"></i> No conectada</span>
           <span class="ms-2">Conecta la gramera para empezar a pesar.</span>`;
-      } else if (s.sinDatos) {
-        const ultima = Array.isArray(s.lastRaw) && s.lastRaw.length ? s.lastRaw[s.lastRaw.length - 1] : null;
-        const muestra = String(s.bufferRaw || '').replace(/[^\x20-\x7E]/g, '.');
+      } else if (s.estado === 'recibe-no-interpreta') {
+        // FALLO REAL: entran bytes y el parser los rechaza.
         const hexa = String(s.hex || '');
         const dec = Array.isArray(s.bytes) ? s.bytes.join(',') : '';
         html = `
-          <span class="badge bg-warning text-dark"><i class="fa-solid fa-plug-circle-exclamation"></i> Puerto abierto, sin lectura</span>
-          <span class="ms-2 pequeña">Baud ${s.baudRate || '?'}. Revisa el cable y el modo CONTINUA de la balanza.</span>` +
-          (ultima ? `<div class="small text-muted mt-2">Tramas recibidas (${s.chunks || 0}): <code>${esc(ultima)}</code> ...</div>` : '') +
-          (muestra ? `<div class="small text-muted mt-1">Bytes: ${s.chunks || 0} fragmentos — <code>${esc(muestra)}</code><br><code>${esc(hexa)}</code><br><code>${esc(dec)}</code></div>` : '');
+          <span class="badge bg-warning text-dark"><i class="fa-solid fa-plug-circle-exclamation"></i> Recibe datos pero no los interpreta</span>
+          <span class="ms-2">Llegaron <b>${s.chunks || 0}</b> fragmentos pero <b>${s.readings || 0}</b> lecturas válidas.
+          Copia la trama de abajo y compárala con el manual de tu indicador.</span>` +
+          (hexa ? `<div class="small text-muted mt-2">Última trama (<b>${s.ultimaTramaMs ? new Date(s.ultimaTramaMs).toLocaleTimeString() : '?'}</b>):<br><code>${esc(hexa)}</code></div>` : '') +
+          (dec ? `<details class="small text-muted mt-1"><summary>Ver bytes</summary><code>${esc(dec)}</code></details>` : '');
+      } else if (s.estado === 'sin-trama') {
+        // No es un fallo: la balanza en modo normal solo emite al cambiar el peso.
+        html = `
+          <span class="badge bg-secondary"><i class="fa-solid fa-hourglass-half"></i> Esperando trama</span>
+          <span class="ms-2">Puerto abierto y sin datos en <b>${((s.timeoutTramaMs || 15000) / 1000).toFixed(0)} s</b>.
+          Pon algo en la balanza: si es continua, activa el modo CONTINUA.</span>`;
       } else {
         const badge = s.estable
           ? '<span class="badge bg-success">Estable</span>'
           : '<span class="badge bg-warning text-dark">Pesando...</span>';
         html = `
           <span class="badge bg-success"><i class="fa-solid fa-link"></i> Conectada</span>
-          <span class="ms-2">Peso: <b>${s.peso ? s.peso.toFixed(3) : "0.000"} kg</b> ${badge}</span>`;
+          <span class="ms-2">Peso: <b>${s.peso ? s.peso.toFixed(3) : "0.000"} kg</b> ${badge}</span>
+          <span class="small text-muted ms-2">${s.readings || 0} lecturas · ${s.chunks || 0} fragmentos · baud ${s.baudRate || '?'}</span>`;
       }
 
       estadoEl.innerHTML = html;

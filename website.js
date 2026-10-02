@@ -959,6 +959,22 @@ router.get('/gramera/detectar', async (req, res) => {
   }
 });
 
+// AJUSTA LOS TIEMPOUTS DE "SIN DATOS" (balanza en modo normal vs continuo)
+router.post('/gramera/timeouts', (req, res) => {
+  const data = req.body || {};
+  res.json(gramera.setTimeouts({ lecturaMs: data.lecturaMs, tramaMs: data.tramaMs }));
+});
+
+// RECUPERACION MANUAL: re-descubre el puerto real de la gramera
+router.post('/gramera/recuperar', async (req, res) => {
+  try {
+    await gramera.recuperar();
+    res.json({ ok: true, mensaje: 'Puerto re-descubierto: ' + gramera.getConfig().port });
+  } catch (err) {
+    res.status(500).json({ ok: false, mensaje: err.message });
+  }
+});
+
 router.get('/gramera/test', (req, res) => {
   res.json(gramera.getTests());
 });

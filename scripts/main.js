@@ -786,18 +786,74 @@ function deleteList(id) {
 
 // GRAMERA (BALANZA): CAPTURA EL PESO ACTUAL Y LO PONE COMO CANTIDAD DEL PRODUCTO
 // POPUP DE PESAJE: ESPERA EL PESO ESTABLE Y SE CONFIRMA CON ENTER
+// El popup tambien permite ESCRIBIR EL PESO A MANO, para poder vender productos
+// de pesaje aunque la gramera este desconectada, en sobrecarga o sin lectura.
+// Si el campo manual esta vacio se usa el peso de la gramera; si tiene algo, el
+// peso escrito es el que manda (permite corregir tambien).
 let _pesajePopupAbierto = false;
 let _pesajePopupTimer = null;
 let _pesajePopupId = null;
 let _pesajePopupModo = 'agregar';
 let _pesajePopupPeso = null;
 let _pesajePopupProducto = null;
+// true cuando el peso sale del campo manual y no de la gramera
+let _pesajePopupManualUsado = false;
+// evita steal de foco repetido del input manual en cada tick del polling
+let _pesajePopupEnfocado = false;
 
 // INDICA SI UN PRODUCTO SE VENDE POR PESO (GRAMERA), acepta "true", true o 1
 function esDePeso(product) {
   if (!product) return false;
   let v = product.venta_por_peso;
   return v === true || v === 1 || v === "true" || String(v).toLowerCase() === "true";
+}
+
+// LEE EL PESO ESCRITO A MANO. Acepta coma o punto como separador decimal
+// ("0,5" y "0.5" valen lo mismo) porque el teclado regional suele poner coma.
+// Devuelve null si esta vacio, no es un numero, o es <= 0.
+// El 0 se rechaza a proposito: el backend convierte una cantidad 0 en 1
+// (falsy), asi que aceptar un peso 0 terminaria vendiendo 1 kg sin avisar.
+function parsearPesoManual(texto) {
+  if (texto === null || texto === undefined) return null;
+  let s = String(texto).trim().replace(/\s/g, '').replace(',', '.');
+  if (!s) return null;
+  if (!/^\d*\.?\d*$/.test(s)) return null;
+  let n = parseFloat(s);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+// PESO QUE SE VA A CONFIRMAR: el escrito a mano si hay, si no el de la gramera.
+function pesoParaConfirmar() {
+  let manual = parsearPesoManual((document.querySelector('#pesajeManualInput') || {}).value);
+  if (manual != null) return { peso: manual, manual: true };
+  if (_pesajePopupPeso != null) return { peso: _pesajePopupPeso, manual: false };
+  return null;
+}
+
+// ACTUALIZA EL TOTAL MOSTRADO Y SI SE PUEDE CONFIRMAR, segun el peso dado.
+function refrescarTotalPesaje(peso) {
+  let elTotal = document.querySelector('#pesajeTotal');
+  let btn = document.querySelector('#btnConfirmarPesaje');
+  let precio = Number(_pesajePopupProducto && _pesajePopupProducto.price || 0);
+  if (elTotal) elTotal.innerHTML = `Total: $ ${formatNumber(redondearPeso(peso * precio))}`;
+  if (btn) btn.disabled = !(peso > 0);
+}
+
+// EVENTO DEL CAMPO MANUAL: habilita la confirmacion y previsualiza el total
+// mientras se escribe, para que un error de tecleo se vea antes de confirmar.
+function pesoManualEscrito() {
+  let v = parsearPesoManual((document.querySelector('#pesajeManualInput') || {}).value);
+  if (v != null) {
+    refrescarTotalPesaje(v);
+    let elEstado = document.querySelector('.pesaje-estado');
+    if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-keyboard"></i> Peso escrito a mano'; elEstado.className = "pesaje-estado pesaje-ok"; }
+  } else {
+    // Se vacio el campo: se vuelve al peso de la gramera si la hay.
+    let btn = document.querySelector('#btnConfirmarPesaje');
+    if (btn) btn.disabled = !(_pesajePopupPeso > 0);
+    if (_pesajePopupPeso != null) refrescarTotalPesaje(_pesajePopupPeso);
+  }
 }
 
 function abrirPesajePopup(id, modo = 'agregar') {
@@ -812,19 +868,27 @@ function abrirPesajePopup(id, modo = 'agregar') {
   _pesajePopupModo = modo;
   _pesajePopupPeso = null;
   _pesajePopupProducto = product;
+  _pesajePopupManualUsado = false;
+  _pesajePopupEnfocado = false;
 
   popup.open({
     title: `Pesaje: ${product.name}`,
     close: false,
     content: `
       <div class="pesaje-rapido">
-        <p class="small text-muted">Coloca el producto en la gramera y espera a que el peso se estabilice. Luego presiona Enter para ${modo == 'agregar' ? 'agregarlo a la venta' : 'guardar el pesaje'}.</p>
+        <p class="small text-muted">Pon el producto en la gramera, o escribe el peso abajo si la gramera no está conectada.</p>
         <div class="pesaje-peso">— kg</div>
         <div class="pesaje-precio">
           <div class="pesaje-precio-unitario">Precio: $ ${formatNumber(product.price || 0)} / kg</div>
           <div class="pesaje-precio-total" id="pesajeTotal">Total: $ —</div>
         </div>
         <div class="pesaje-estado"><span class="spinner-border spinner-border-sm me-1"></span>Pesando…</div>
+        <div class="pesaje-manual">
+          <label class="small text-muted d-block mb-1">O escribe el peso (kg)</label>
+          <input type="number" id="pesajeManualInput" class="form-control form-control-sm text-center"
+                 inputmode="decimal" step="0.001" min="0" placeholder="Ej: 0.500" autocomplete="off"
+                 oninput="pesoManualEscrito()">
+        </div>
         <button class="btn btn-outline-success d-block w-100 mt-3" id="btnConfirmarPesaje" disabled onclick="confirmarPesajeRapido()">
           <i class="fa-solid fa-check"></i> ${modo == 'agregar' ? "Agregar (Enter)" : "Guardar peso (Enter)"}
         </button>
@@ -847,45 +911,71 @@ function pesajePopupTick() {
   axios.get('/gramera/peso').then((resp) => {
     const data = resp.data;
     let elEstado = document.querySelector('.pesaje-estado');
-    let btn = document.querySelector('#btnConfirmarPesaje');
     let elTotal = document.querySelector('#pesajeTotal');
+    let manual = parsearPesoManual((document.querySelector('#pesajeManualInput') || {}).value);
+
+    // Si el usuario ya escribio un peso, la gramera deja de mandar: no se pisa lo
+    // que esta escribiendo y no se bloquea el boton por falta de lectura.
+    if (manual != null) {
+      elPeso.innerHTML = `<span class="pesaje-peso-manual">${manual} kg</span>`;
+      refrescarTotalPesaje(manual);
+      if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-keyboard"></i> Peso escrito a mano'; elEstado.className = "pesaje-estado pesaje-ok"; }
+      return;
+    }
 
     if (!data.conectada) {
       elPeso.innerHTML = '— kg';
       if (elTotal) elTotal.innerHTML = 'Total: $ —';
-      if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-plug-circle-xmark"></i> Gramera no conectada'; elEstado.className = "pesaje-estado pesaje-error"; }
-      if (btn) btn.disabled = true;
+      if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-plug-circle-xmark"></i> Gramera no conectada: escribe el peso'; elEstado.className = "pesaje-estado pesaje-error"; }
+      if (btn()) btn().disabled = true;
+      enfocarManualSiToca();
       return;
     }
     if (data.sobrecarga) {
       elPeso.innerHTML = '— kg';
       if (elTotal) elTotal.innerHTML = 'Total: $ —';
-      if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Sobrecarga en la gramera'; elEstado.className = "pesaje-estado pesaje-error"; }
-      if (btn) btn.disabled = true;
+      if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Sobrecarga en la gramera: escribe el peso'; elEstado.className = "pesaje-estado pesaje-error"; }
+      if (btn()) btn().disabled = true;
+      enfocarManualSiToca();
       return;
     }
 
     let actual = Number(Number(data.peso).toFixed(3));
     elPeso.innerHTML = `${actual} kg`;
-    if (elTotal) {
-      let precio = Number(_pesajePopupProducto && _pesajePopupProducto.price || 0);
-      elTotal.innerHTML = `Total: $ ${formatNumber(redondearPeso(actual * precio))}`;
-    }
+    refrescarTotalPesaje(actual);
 
     if (data.estable) {
       _pesajePopupPeso = actual;
       if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-circle-check"></i> Peso estable'; elEstado.className = "pesaje-estado pesaje-ok"; }
-      if (btn) btn.disabled = false;
+      if (btn()) btn().disabled = false;
     } else {
       if (elEstado) { elEstado.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Pesando…'; elEstado.className = "pesaje-estado"; }
-      if (btn) btn.disabled = true;
+      if (btn()) btn().disabled = true;
     }
   }).catch(() => {
     let elEstado = document.querySelector('.pesaje-estado');
-    let elTotal = document.querySelector('#pesajeTotal');
-    if (elTotal) elTotal.innerHTML = 'Total: $ —';
-    if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Error leyendo la gramera'; elEstado.className = "pesaje-estado pesaje-error"; }
+    // Si el servidor no responde, no se bloquea la venta: se puede escribir el peso.
+    if (elEstado) { elEstado.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> No se pudo leer la gramera: escribe el peso'; elEstado.className = "pesaje-estado pesaje-error"; }
+    enfocarManualSiToca();
   });
+}
+
+function btn() {
+  return document.querySelector('#btnConfirmarPesaje');
+}
+
+// Si la gramera no sirve, el foco va al campo manual para que el usuario solo
+// tenga que teclear el peso y dar Enter. Solo una vez, para no pelear con el
+// foco si el usuario ya esta escribiendo o movio el cursor a otro lado.
+function enfocarManualSiToca() {
+  if (_pesajePopupEnfocado) return;
+  let input = document.querySelector('#pesajeManualInput');
+  if (!input) return;
+  let activo = document.activeElement;
+  if (activo && activo !== document.body && activo !== input) return;
+  _pesajePopupEnfocado = true;
+  input.focus();
+  if (input.select) input.select();
 }
 
 function aplicarPesaje(id, peso, modo) {
@@ -906,10 +996,18 @@ function aplicarPesaje(id, peso, modo) {
 
 function confirmarPesajeRapido() {
   if (!_pesajePopupAbierto) return;
-  if (_pesajePopupPeso == null) return Toast.fire({ text: "Espera a que el peso se estabilice.", icon: "info" });
+
+  let eleccion = pesoParaConfirmar();
+  if (!eleccion) {
+    return Toast.fire({
+      text: "Escribe el peso en kg o espera a que la gramera se estabilice.",
+      icon: "info"
+    });
+  }
 
   let id = _pesajePopupId;
-  let peso = _pesajePopupPeso;
+  let peso = eleccion.peso;
+  _pesajePopupManualUsado = eleccion.manual;
   let modo = _pesajePopupModo;
 
   let product = converterArray(JSON.parse(sessionStorage.getItem('products') || "{}")).find(ch => ch.id == id);
@@ -939,6 +1037,8 @@ function cerrarPesajePopup() {
   _pesajePopupModo = 'agregar';
   _pesajePopupPeso = null;
   _pesajePopupProducto = null;
+  _pesajePopupManualUsado = false;
+  _pesajePopupEnfocado = false;
   popup.close();
 }
 
@@ -1103,13 +1203,22 @@ function checkGramera() {
     if (!el) return;
 
     const data = resp.data;
+    // El backend ya separa los estados. Antes todo lo que no fuera "leyendo"
+    // caia en un solo aviso ambar que no distinguia un fallo real de una
+    // balanza en modo normal que simplemente aun no habia enviado nada.
+    const estado = data.estado || (data.conectada ? (data.sinDatos ? 'sin-trama' : 'leyendo') : 'desconectada');
 
-    el.className = "gramera-status text-center mb-2 py-1 px-2 rounded cursor-pointer " + (data.conectada ? (data.sinDatos ? "gramera-espera" : (data.estable ? "gramera-ok" : "gramera-espera")) : "gramera-off");
+    el.className = "gramera-status text-center mb-2 py-1 px-2 rounded cursor-pointer " +
+      (estado === 'desconectada' ? "gramera-off"
+        : estado === 'leyendo' ? (data.estable ? "gramera-ok" : "gramera-espera")
+        : "gramera-espera");
 
-    if (!data.conectada) {
+    if (estado === 'desconectada') {
       el.innerHTML = `<i class="fa-solid fa-weight-scale"></i> Gramera <span class="badge bg-danger">No conectada</span> <i class="fa-solid fa-gear ms-1"></i>`;
-    } else if (data.sinDatos) {
-      el.innerHTML = `<i class="fa-solid fa-weight-scale"></i> Puerto abierto, sin lectura de la balanza <i class="fa-solid fa-gear ms-1"></i>`;
+    } else if (estado === 'recibe-no-interpreta') {
+      el.innerHTML = `<i class="fa-solid fa-weight-scale"></i> Gramera <span class="badge bg-warning text-dark">Recibe datos, no los lee</span> <i class="fa-solid fa-gear ms-1"></i>`;
+    } else if (estado === 'sin-trama') {
+      el.innerHTML = `<i class="fa-solid fa-weight-scale"></i> Gramera <span class="badge bg-secondary">Esperando trama</span> <i class="fa-solid fa-gear ms-1"></i>`;
     } else {
       const badge = data.estable ? '<span class="badge bg-success">Estable</span>' : '<span class="badge bg-warning text-dark">Pesando...</span>';
       el.innerHTML = `<i class="fa-solid fa-weight-scale"></i> Gramera: <b>${data.peso.toFixed(3)} kg</b> ${badge} <i class="fa-solid fa-gear ms-1"></i>`;
@@ -3215,33 +3324,65 @@ function verComprasCliente(id) {
   socket.once('getComprasCliente', (data) => {
     if (!data.data) return Toast.fire({ title: "Compras del cliente", text: data.message, icon: "info" });
     window._comprasClienteActual = data.data;
-    renderComprasCliente(data.data, 'todo');
+
+    // El popup arranca con el MISMO rango que se esta viendo en la pagina, para que
+    // su total sea comparable con el del Excel. El Excel siempre respeta el rango
+    // de fechas y este total historico no, y esa diferencia confundia a los usuarios.
+    let desdePagina = (document.getElementById('filtroVentasDesde') || {}).value || '';
+    let hastaPagina = (document.getElementById('filtroVentasHasta') || {}).value || '';
+
     popup.open({
       title: "Compras del cliente: " + (data.data.name || id),
       content: `
         <div class="cliente-compras">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <b>Total acumulado: $ ${formatNumber(data.data.total)}</b>
-            <span class="text-muted small">${data.data.cantVentas || 0} venta(s)</span>
+          <div class="alert alert-secondary p-2 small mb-2">
+            <b>Total histórico (todo el historial):</b> $ ${formatNumber(data.data.total)} en ${data.data.cantVentas || 0} venta(s).
+            <div class="text-muted mt-1">Este total no lleva filtro de fechas. Para compararlo con el Excel usa el rango de abajo.</div>
           </div>
           <div class="mb-2">
             <label class="small text-muted">Período</label>
             <select id="filtroComprasCliente" class="form-select" onchange="filtrarComprasCliente(this.value)">
-              <option value="todo">Todo</option>
+              <option value="rango">Rango de fechas (igual que el Excel)</option>
+              <option value="todo">Todo el historial</option>
               <option value="30d">Últimos 30 días</option>
               <option value="mes">Este mes</option>
               <option value="mesAnterior">Mes pasado</option>
             </select>
+          </div>
+          <div id="comprasClienteRango" class="mb-2 d-flex gap-2 align-items-end flex-wrap">
+            <div>
+              <label class="small text-muted d-block">Desde</label>
+              <input type="date" id="comprasClienteDesde" class="form-control form-control-sm" value="${escapeHtml(desdePagina)}" onchange="filtrarComprasCliente('rango')">
+            </div>
+            <div>
+              <label class="small text-muted d-block">Hasta</label>
+              <input type="date" id="comprasClienteHasta" class="form-control form-control-sm" value="${escapeHtml(hastaPagina)}" onchange="filtrarComprasCliente('rango')">
+            </div>
+            <button class="btn btn-outline-primary btn-sm" onclick="filtrarComprasCliente('rango')">Aplicar</button>
           </div>
           <div id="comprasClienteContenido"></div>
           <div id="comprasClienteResumen"></div>
         </div>
       `
     });
+    // Antes se renderizaba antes de abrir el popup, asi que el contenedor todavia no
+    // existia y la funcion retornaba: la tabla no aparecia hasta tocar el filtro.
+    renderComprasCliente(data.data, 'rango');
   });
 }
 
+function rangoComprasCliente() {
+  let d = (document.getElementById('comprasClienteDesde') || {}).value || '';
+  let h = (document.getElementById('comprasClienteHasta') || {}).value || '';
+  if (!d && !h) return null;
+  let desdeMs = d ? (new Date(d + 'T00:00:00') - 0) : -Infinity;
+  let hastaMs = h ? (new Date(h + 'T23:59:59.999') - 0) : Infinity;
+  return { desde: d, hasta: h, desdeMs, hastaMs };
+}
+
 function filtrarComprasCliente(filtro) {
+  let caja = document.getElementById('comprasClienteRango');
+  if (caja) caja.style.display = (filtro === 'rango') ? '' : 'none';
   renderComprasCliente(window._comprasClienteActual, filtro);
 }
 
@@ -3282,7 +3423,14 @@ function renderComprasCliente(info, filtro) {
   if (!cont) return;
 
   const ahora = new Date();
+  const rango = filtro === 'rango' ? rangoComprasCliente() : null;
   const enPeriodo = (ts) => {
+    if (filtro === 'rango') {
+      if (!rango) return true;
+      const t = Number(ts || 0);
+      if (!t) return false;
+      return t >= rango.desdeMs && t <= rango.hastaMs;
+    }
     const d = new Date(ts || 0);
     if (filtro === '30d') return (ahora - d) <= 30 * 24 * 3600 * 1000;
     if (filtro === 'mes') return d.getFullYear() === ahora.getFullYear() && d.getMonth() === ahora.getMonth();
@@ -3342,7 +3490,24 @@ function renderComprasCliente(info, filtro) {
     </table>`;
   }
 
-  res.innerHTML = `<div class="alert alert-info p-2 small">Total comprado en el período seleccionado: <b>$ ${formatNumber(subtotal)}</b> en ${filtradas.length} venta(s).</div>`;
+  const todas = (info.compras || []);
+  const totalHistorico = todas.reduce((s, c) => s + Number(c.total || 0), 0);
+
+  let lineaPeriodo = '';
+  if (filtro === 'rango' && rango) {
+    lineaPeriodo = `<div class="alert alert-primary p-2 small mb-1">
+      <b>Total del rango ${escapeHtml(rango.desde || 'inicio')} a ${escapeHtml(rango.hasta || 'hoy')}:</b>
+      $ ${formatNumber(subtotal)} en ${filtradas.length} venta(s).
+    </div>`;
+  }
+
+  res.innerHTML = `${lineaPeriodo}
+    <div class="alert ${filtro === 'rango' && rango ? 'secondary' : 'info'} p-2 small mb-0">
+      ${filtro === 'rango' && rango
+        ? 'Total histórico (todo el historial): '
+        : 'Total comprado en el período seleccionado: '}<b>$ ${formatNumber(filtro === 'rango' && rango ? totalHistorico : subtotal)}</b>
+      en ${filtro === 'rango' && rango ? todas.length : filtradas.length} venta(s).
+    </div>`;
 }
 
 function compraAVenta(compra, info) {

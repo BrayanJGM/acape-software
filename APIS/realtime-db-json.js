@@ -192,12 +192,43 @@ class Database {
     asegurarDirectorios(this.route);
     return leerDirectorio(this.route)?leerDirectorio(this.route):{};
   }
+  // setData SOLO ESCRIBE: nunca borra. Como los arreglos se guardan como
+  // directorios numerados (compras/0, compras/1, ...), reducir un arreglo dejaba
+  // los directorios viejos en disco y leerlos de nuevo resucitaba compras
+  // borradas. Por eso, despues de escribir, se podan los indices sobrantes.
+  // Solo se poda lo que viene en el objeto escrito, asi que un setData parcial
+  // (por ejemplo solo el nombre) nunca toca arreglos que no envio.
+  podarArreglos(rutaBase, object) {
+    const aBorrar = [];
+    const recorrer = (valor, ruta) => {
+      if (Array.isArray(valor)) {
+        aBorrar.push({ dir: ruta, len: valor.length });
+        valor.forEach((v, i) => { if (v && typeof v === 'object' && !Array.isArray(v)) recorrer(v, path.join(ruta, String(i))); });
+      } else if (valor && typeof valor === 'object') {
+        Object.keys(valor).forEach(k => recorrer(valor[k], path.join(ruta, k)));
+      }
+    };
+    recorrer(object, rutaBase);
+
+    aBorrar.forEach(({ dir, len }) => {
+      const abs = path.join(this.route, dir);
+      if (!fs.existsSync(abs)) return;
+      fs.readdirSync(abs).forEach(nombre => {
+        let esArchivo = nombre.endsWith('.fdb');
+        let base = esArchivo ? nombre.slice(0, -4) : nombre;
+        if (!/^\d+$/.test(base)) return;
+        if (Number(base) < len) return;
+        fs.rmSync(path.join(abs, nombre), { recursive: true, force: true });
+      });
+    });
+  }
   setData(route, object) {
     let super_array = generarRutasYDatos(rutasAObjeto(route, object));
     super_array.forEach((element) => {
       asegurarDirectorios(`${this.route}/${element.route}.fdb`)
       fs.writeFileSync(`${this.route}/${element.route}.fdb`, JSON.stringify(element.data));
     })
+    this.podarArreglos(String(route).split('/').filter(p => p !== '').join('/'), object);
 
     return object;
   }

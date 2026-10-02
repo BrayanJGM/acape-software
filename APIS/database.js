@@ -1511,14 +1511,29 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
   let vinculoId = clientId || deudorId;
   if (vinculoId) {
     try {
+      // Cada ficha se lee UNA sola vez: setData escribe el registro completo, asi
+      // que trabajar sobre dos copias distintas de la misma ficha haria que una
+      // pisara a la otra y se perdieran compras o movimientos.
       let findingClient = clientId ? this.db.getData('/data/simple/clientes/' + clientId) : null;
       let clienteDeudor = null;
+      if (deudorId) {
+        clienteDeudor = (String(clientId || '') !== '' && String(clientId) === String(deudorId))
+          ? findingClient
+          : this.db.getData('/data/simple/clientes/' + deudorId);
+      }
 
-      if (findingClient && clientId) {
-        final_venta.clienteId = clientId;
-        final_venta.cliente = findingClient.name;
-        findingClient.compras = converterArray(findingClient.compras || []);
-        findingClient.compras.push({
+      // La compra se registra en QUIEN COMPRO: el cliente si existe, si no el deudor.
+      // Antes solo se guardaba con clienteId, y el Excel agrupa por deudorId, por lo
+      // que una venta fiada sin cliente quedaba en el Excel y no en el popup.
+      let destinoCompra = findingClient || clienteDeudor;
+
+      if (destinoCompra) {
+        if (clientId) {
+          final_venta.clienteId = clientId;
+          final_venta.cliente = destinoCompra.name;
+        }
+        destinoCompra.compras = converterArray(destinoCompra.compras || []);
+        destinoCompra.compras.push({
           ventaId: final_venta.id,
           fecha: fechaVenta,
           total: final_venta.total_pago,
@@ -1532,30 +1547,24 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 
       // VENTA A CREDITO (fiado): la diferencia se registra como deuda del deudor
       let deudaPendiente = redondearMoneda(final_venta.total_pago - final_venta.recibido);
-      if (deudorId && deudaPendiente > 0.005) {
-        if (deudorId == clientId) {
-          clienteDeudor = findingClient;
-        } else {
-          clienteDeudor = this.db.getData('/data/simple/clientes/' + deudorId);
-        }
-        if (clienteDeudor) {
-          clienteDeudor.deuda = Number(clienteDeudor.deuda ? clienteDeudor.deuda : 0) + deudaPendiente;
-          if(!clienteDeudor.cuenta_abierta) clienteDeudor.cuenta_abierta = new Date();
-          clienteDeudor.movements = converterArray(clienteDeudor.movements || []);
-          clienteDeudor.movements.push({
-            monto: deudaPendiente,
-            desc: `Venta fiada #${final_venta.id}`,
-            date: new Date(fechaVenta).toString(),
-            sign: "-",
-            ventaId: final_venta.id
-          });
-        }
+      if (clienteDeudor && deudorId && deudaPendiente > 0.005) {
+        clienteDeudor.deuda = Number(clienteDeudor.deuda ? clienteDeudor.deuda : 0) + deudaPendiente;
+        if(!clienteDeudor.cuenta_abierta) clienteDeudor.cuenta_abierta = new Date();
+        clienteDeudor.movements = converterArray(clienteDeudor.movements || []);
+        clienteDeudor.movements.push({
+          monto: deudaPendiente,
+          desc: `Venta fiada #${final_venta.id}`,
+          date: new Date(fechaVenta).toString(),
+          sign: "-",
+          ventaId: final_venta.id
+        });
       }
 
+      // Cada ficha distinta se guarda una vez, con compras y movimientos ya aplicados.
       if (findingClient) {
         this.db.setData(`/data/simple/clientes/${clientId}`, findingClient);
       }
-      if (clienteDeudor && (!clientId || String(deudorId) !== String(clientId))) {
+      if (clienteDeudor && String(deudorId) !== String(clientId || '')) {
         this.db.setData(`/data/simple/clientes/${deudorId}`, clienteDeudor);
       }
 
@@ -1585,9 +1594,35 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		let findingVenta = this.db.initData(`/data/simple/ventas/${data.id}`);
 		if(!findingVenta) return {message: "Esta venta no existe o no fue concretada"};
 
+		// La venta se reconstruye con un id NUEVO, asi que hay que conservar sus
+		// metadatos y limpiar los registros del cliente que quedaron apuntando al id viejo.
+		// Sin esto se duplicaba la compra en cliente.compras y la deuda del cliente.
+		const anterior = {
+			clienteId: findingVenta.clienteId != null && findingVenta.clienteId !== '' ? findingVenta.clienteId : null,
+			deudorId: findingVenta.deudorId != null && findingVenta.deudorId !== '' ? findingVenta.deudorId : null,
+			ventaHechaPor: findingVenta.ventaHechaPor,
+			mayor: findingVenta.mayor,
+			digital: findingVenta.digital,
+			date: findingVenta.date
+		};
+
 		this.db.removeData(`/data/simple/ventas/${findingVenta.id}`, findingVenta);
 
-		return this.createVenta(data.ventas, total_recibido);
+		this._limpiarComprasYDeudaCliente(anterior.clienteId, findingVenta.id);
+		if (String(anterior.deudorId || '') !== String(anterior.clienteId || '')) {
+			this._limpiarComprasYDeudaCliente(anterior.deudorId, findingVenta.id);
+		}
+
+		return this.createVenta(
+			data.ventas,
+			total_recibido,
+			anterior.ventaHechaPor,
+			anterior.mayor,
+			anterior.digital,
+			anterior.clienteId,
+			anterior.deudorId,
+			anterior.date
+		);
 	}
 
 	// CAMBIA LA FECHA DE UNA VENTA YA CONCRETADA y la sincroniza
