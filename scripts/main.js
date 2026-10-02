@@ -208,12 +208,12 @@ function registCaja(venta, total_recibido) {
   return data;
 }
 
-function registCajaDigital(venta, total_recibido){
+function registCajaDigital(venta, total_recibido) {
   let caja = localStorage.getItem('caja');
   if (!caja) setSubmitCaja([{ value: 0 }]);
 
   let data = JSON.parse(localStorage.getItem('caja'));
-  data.value_digital = (data.value_digital?data.value_digital:0) + Number(total_recibido);
+  data.value_digital = (data.value_digital ? data.value_digital : 0) + Number(total_recibido);
   data.total_recibido = Number(data.total_recibido) + Number(total_recibido);
 
   localStorage.setItem('caja', JSON.stringify(data));
@@ -249,7 +249,7 @@ function createIngreso(venta, total_recibido) {
   localStorage.setItem('caja', JSON.stringify(data));
   openCashDrawer();
 
-  axios.post('/whatsapp/ingreso', {token: sessionStorage.getItem('acape-session'), data: venta});
+  axios.post('/whatsapp/ingreso', { token: sessionStorage.getItem('acape-session'), data: venta });
 
   return data;
 }
@@ -267,7 +267,7 @@ function createEgreso(venta, total_recibido) {
   localStorage.setItem('caja', JSON.stringify(data));
   openCashDrawer()
 
-  axios.post('/whatsapp/gasto', {token: sessionStorage.getItem('acape-session'), data: venta});
+  axios.post('/whatsapp/gasto', { token: sessionStorage.getItem('acape-session'), data: venta });
 
   return data;
 }
@@ -313,7 +313,7 @@ function importeLinea(ch, mayorVenta = false) {
   return redondearPeso(ch.cantidad ? (Number(base) * Number(ch.cantidad)) : Number(base));
 }
 
-document.addEventListener('input', function(e) {
+document.addEventListener('input', function (e) {
   if (e.target.classList.contains('numberify-input-commas')) {
     addCommaSeparators(e.target);
   }
@@ -669,7 +669,7 @@ function setListProduct(data, desdePesaje = false) {
         didOpen: () => {
           // Add event listener to the input once the Swal is open
           const input = Swal.getInput();
-          input.addEventListener('input', function() {
+          input.addEventListener('input', function () {
             addCommaSeparators(this);
           });
         }
@@ -763,7 +763,7 @@ function inputVentas(e) {
   if (e.value == "") return document.querySelector('.searching').innerHTML = '';
   document.querySelector('.searching').innerHTML = `
     <div class="buscando">
-      ${filtering.map(ch => `<div onclick="setListProduct('${ch.id}')" class="sill-btn">#${ch.id} <b>${ch.name}</b> - ${formatNumber(ch.price?ch.price:"?")}</div>`).join('')}
+      ${filtering.map(ch => `<div onclick="setListProduct('${ch.id}')" class="sill-btn">#${ch.id} <b>${ch.name}</b> - ${formatNumber(ch.price ? ch.price : "?")}</div>`).join('')}
     </div>
   `;
 }
@@ -1211,7 +1211,7 @@ function checkGramera() {
     el.className = "gramera-status text-center mb-2 py-1 px-2 rounded cursor-pointer " +
       (estado === 'desconectada' ? "gramera-off"
         : estado === 'leyendo' ? (data.estable ? "gramera-ok" : "gramera-espera")
-        : "gramera-espera");
+          : "gramera-espera");
 
     if (estado === 'desconectada') {
       el.innerHTML = `<i class="fa-solid fa-weight-scale"></i> Gramera <span class="badge bg-danger">No conectada</span> <i class="fa-solid fa-gear ms-1"></i>`;
@@ -1296,10 +1296,10 @@ function listingProducts() {
         <td>${ch.id}</td>
         <td>${ch.name}</td>
         <td class="non-padding">
-          <input class="line-precio-${ch.id} numberify-input-commas" oninput="return changePrecioLinea('${ch.id}', this)" type="text" value="${formatNumber(ch.price?ch.price:0)}">
+          <input class="line-precio-${ch.id} numberify-input-commas" oninput="return changePrecioLinea('${ch.id}', this)" type="text" value="${formatNumber(ch.price ? ch.price : 0)}">
         </td>
         <td class="non-padding">
-          <input class="line-cantidad-${ch.id}" oninput="return changeCantidad('${ch.id}', this)" type="number" step="0.001" value="${ch.cantidad?ch.cantidad:1}">
+          <input class="line-cantidad-${ch.id}" oninput="return changeCantidad('${ch.id}', this)" type="number" step="0.001" value="${ch.cantidad ? ch.cantidad : 1}">
         </td>
         <td class="text-center">
           ${esDePeso(ch) ? `<button class="btn btn-outline-info btn-sm" onclick="pesarProducto('${ch.id}')"><i class="fa-solid fa-weight-scale"></i> Pesar</button>` : ""}
@@ -1392,7 +1392,7 @@ function changeCantidadEntrada(id, e) {
       array[i].cantidad = e.value ? e.value : 1;
       finalPrice = Number(finalPrice) + Number((element.cantidad ? ((element.costo_adquisitivo ? element.costo_adquisitivo : element.price) * array[i].cantidad) : (element.costo_adquisitivo ? element.costo_adquisitivo : element.price)));
       sessionStorage.setItem('entrada-almacen', JSON.stringify(array));
-      document.querySelector(`.change-price-${id}`).innerHTML = `${array[i].price*array[i].cantidad}`;
+      document.querySelector(`.change-price-${id}`).innerHTML = `${array[i].price * array[i].cantidad}`;
       document.querySelector('.edit-total').innerHTML = formatNumber(finalPrice);
     } else {
       finalPrice = Number(finalPrice) + Number(element.cantidad ? ((element.costo_adquisitivo ? element.costo_adquisitivo : element.price) * element.cantidad) : (element.costo_adquisitivo ? element.costo_adquisitivo : element.price));
@@ -1412,11 +1412,11 @@ function listingEntrada() {
     return `<tr>
         <td>${ch.id}</td>
         <td>${ch.name}</td>
-        <td>${formatNumber(ch.costo_adquisitivo?ch.costo_adquisitivo:ch.price)}</td>
+        <td>${formatNumber(ch.costo_adquisitivo ? ch.costo_adquisitivo : ch.price)}</td>
         <td class="non-padding">
-          <input oninput="changeCantidadEntrada('${ch.id}', this)" type="number" value="${ch.cantidad?ch.cantidad:1}" ${!ch.cantidad?"disabled":""}>
+          <input oninput="changeCantidadEntrada('${ch.id}', this)" type="number" value="${ch.cantidad ? ch.cantidad : 1}" ${!ch.cantidad ? "disabled" : ""}>
         </td>
-        <td class="change-price-${ch.id}">${formatNumber(ch.cantidad?((ch.costo_adquisitivo?ch.costo_adquisitivo:ch.price)*(ch.cantidad?ch.cantidad:0)):ch.price)}</td>
+        <td class="change-price-${ch.id}">${formatNumber(ch.cantidad ? ((ch.costo_adquisitivo ? ch.costo_adquisitivo : ch.price) * (ch.cantidad ? ch.cantidad : 0)) : ch.price)}</td>
         <td class="text-center cursor-pointer" onclick="deleteListEntrada('${ch.id}')">x</td>
       </tr>`
   }).join('')
@@ -1526,7 +1526,7 @@ function sendCreateVenta(e, mayor, finalPrice, event) {
     setTimeout(() => { socket.emit('createVenta', data) }, 1000);
   }
 
-popup.open({
+  popup.open({
     title: tieneDeuda ? "Venta Fiada hecha" : "Venta hecha",
     content: `Total a pagar: ${formatNumber(finalPrice)} <br> Total Recibido: ${formatNumber(data.total_recibido)} <br>${tieneDeuda ? ` <br> <span class="text-danger">Se registro una deuda de ${formatNumber(redondearMoneda(finalPrice - data.total_recibido))}</span><br>` : ""}<br> ${tieneDeuda ? "" : `Vueltos: ${formatNumber(redondearMoneda(Number(removeCommaSeparators(e[1].value)) - finalPrice))} <br><br>`} <button class="btn btn-outline-success" onclick="imprimirReciboVenta()">Imprimir recibo</button> <button id="btnAceptarVentaHecha" class="btn btn-outline-info" onclick="popup.close()">Aceptar</button>`
   });
@@ -1694,7 +1694,7 @@ function facturacion() {
   let finalProducts = finalList.map(ch => {
     finalPrice = finalPrice + importeLinea(ch);
 
-    return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price)} | Precio Final: ${formatNumber(importeLinea(ch))}</div>`;
+    return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad ? ch.cantidad : 1} | Precio Unitario: ${formatNumber(ch.price)} | Precio Final: ${formatNumber(importeLinea(ch))}</div>`;
   }).join('');
 
   let methods = sessionStorage.getItem('methods') ? JSON.parse(sessionStorage.getItem('methods')) : {};
@@ -1874,16 +1874,16 @@ function facturacionMayor() {
   let finalProducts = finalList.map(ch => {
     finalPrice = finalPrice + importeLinea(ch, true);
 
-    return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price_mayor?ch.price_mayor:ch.price + ' (Este producto no tiene precio por mayor)')} | Precio Final: ${formatNumber(importeLinea(ch, true))}</div>`;
+    return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad ? ch.cantidad : 1} | Precio Unitario: ${formatNumber(ch.price_mayor ? ch.price_mayor : ch.price + ' (Este producto no tiene precio por mayor)')} | Precio Final: ${formatNumber(importeLinea(ch, true))}</div>`;
   }).join('')
 
   let methods = sessionStorage.getItem('methods') ? JSON.parse(sessionStorage.getItem('methods')) : {};
   let array_methods = converterArray(methods);
 
   getClientesVenta((clientesVenta) => {
-      popup.open({
-        title: "Venta Por Mayor",
-        content: `
+    popup.open({
+      title: "Venta Por Mayor",
+      content: `
         <form onsubmit="return sendCreateVenta(this, true, ${finalPrice}, event)">
           <label htmlFor="">Metodos De Pago</label>
           <select name="" value="efectivo" class="form-select">
@@ -1919,12 +1919,12 @@ function facturacionMayor() {
           <button id="btnFinalizarVentaMayor" class="btn btn-block btn-outline-primary"><i class="fa-solid fa-floppy-disk"></i> Finalizar</button>
         </form>
       `
-      });
-      activarBuscadorCliente(clientesVenta, { focusOnSelect: 'btnFinalizarVentaMayor' });
-      autoSeleccionarClienteNuevo();
-      configurarSwitchFiado(finalPrice);
-      let btnFinalizarMayor = document.getElementById('btnFinalizarVentaMayor');
-      if (btnFinalizarMayor) btnFinalizarMayor.focus();
+    });
+    activarBuscadorCliente(clientesVenta, { focusOnSelect: 'btnFinalizarVentaMayor' });
+    autoSeleccionarClienteNuevo();
+    configurarSwitchFiado(finalPrice);
+    let btnFinalizarMayor = document.getElementById('btnFinalizarVentaMayor');
+    if (btnFinalizarMayor) btnFinalizarMayor.focus();
   });
 }
 
@@ -1956,7 +1956,7 @@ function submitEntrada(e) {
 
 
 // Utilizamos delegación de eventos en un elemento padre que siempre esté presente en el DOM
-document.addEventListener('submit', function(event) {
+document.addEventListener('submit', function (event) {
   if (event.target && event.target.matches('.productListening')) {
     event.preventDefault(); // Evitamos que el formulario se envíe
     submitProduct(event.target)
@@ -2139,33 +2139,33 @@ function editProduct(id) {
           <p>Si no agregas precio, cada vez que vayas a vender este producto se te pedira un precio.</p>
           <div class="input-group mb-3">
             <span class="input-group-text" id="basic-addon1">$</span>
-            <input type="text" class="form-control numberify-input-commas" value="${formatNumber(info_inputs.price?info_inputs.price:"")}" placeholder="1000">
+            <input type="text" class="form-control numberify-input-commas" value="${formatNumber(info_inputs.price ? info_inputs.price : "")}" placeholder="1000">
           </div>
 
           <label htmlFor="">Precio por mayor o por descuento (opcional)</label>
           <div class="input-group mb-3">
             <span class="input-group-text" id="basic-addon1">$</span>
-            <input type="text" class="form-control numberify-input-commas" value="${formatNumber(info_inputs.price_mayor?info_inputs.price_mayor:"")}" placeholder="700">
+            <input type="text" class="form-control numberify-input-commas" value="${formatNumber(info_inputs.price_mayor ? info_inputs.price_mayor : "")}" placeholder="700">
           </div>
 
           <label class="d-inline">IVA (opcional)</label>
           <div class="input-group mb-3">
             <span class="input-group-text">%</span>
-            <input type="number" class="form-control d-inline" value="${info_inputs.iva?info_inputs.iva:0}" placeholder="1 - 100" max="100" min="0">
+            <input type="number" class="form-control d-inline" value="${info_inputs.iva ? info_inputs.iva : 0}" placeholder="1 - 100" max="100" min="0">
           </div>
 
           <label class="d-inline">Cantidad (opcional)</label>
           <p>Si no se pone cantidad, el stock sera infinito hasta que se cambie.</p>
           <div class="input-group mb-3">
             <span class="input-group-text">#</span>
-            <input type="text" value="${info_inputs.stock?info_inputs.stock:""}" class="form-control numberify-input-commas d-inline" placeholder="10">
+            <input type="text" value="${info_inputs.stock ? info_inputs.stock : ""}" class="form-control numberify-input-commas d-inline" placeholder="10">
           </div>
 
           <label htmlFor="">Costo Adquisitivo o precio original (opcional)</label>
           <p>Este precio no se vera a la hora de venderlo</p>
           <div class="input-group mb-3">
             <span class="input-group-text">$</span>
-            <input type="text" class="form-control numberify-input-commas" value="${formatNumber(info_inputs.costo_adquisitivo?info_inputs.costo_adquisitivo:"")}">
+            <input type="text" class="form-control numberify-input-commas" value="${formatNumber(info_inputs.costo_adquisitivo ? info_inputs.costo_adquisitivo : "")}">
           </div>
 
           <label>ID Personalizado (opcional)</label>
@@ -2334,21 +2334,21 @@ function finalDetergente(data) {
       </thead>
       <tbody class="tbody-products">
         ${final_products.map(ch => {
-          let actual_stock = ch.stock;
-          total_inversion = Number(total_inversion) + Number(Number(ch.costo_adquisitivo?ch.costo_adquisitivo:Number(ch.precio?ch.precio:0)) * Number(ch.stock?ch.stock:0));
-          total_venta = Number(total_venta) + (Number(ch.price?ch.price:0) * Number(ch.stock?ch.stock:0));
+    let actual_stock = ch.stock;
+    total_inversion = Number(total_inversion) + Number(Number(ch.costo_adquisitivo ? ch.costo_adquisitivo : Number(ch.precio ? ch.precio : 0)) * Number(ch.stock ? ch.stock : 0));
+    total_venta = Number(total_venta) + (Number(ch.price ? ch.price : 0) * Number(ch.stock ? ch.stock : 0));
 
-          return `<tr>
+    return `<tr>
             <td># ${ch.id}</td>
             <td>${ch.name}</td>
-            <td>Precio Normal: $ ${formatNumber(ch.price?ch.price:0)} <br> <span>Por Mayor: </span> $ ${formatNumber(ch.price_mayor?ch.price_mayor:0)}</td>
-            <td>${ch.iva?ch.iva:0} %</td>
-            <td># ${actual_stock==null?'Infinito':actual_stock}</td>
-            <td>$ ${formatNumber(ch.costo_adquisitivo?ch.costo_adquisitivo:"0")}</td>
+            <td>Precio Normal: $ ${formatNumber(ch.price ? ch.price : 0)} <br> <span>Por Mayor: </span> $ ${formatNumber(ch.price_mayor ? ch.price_mayor : 0)}</td>
+            <td>${ch.iva ? ch.iva : 0} %</td>
+            <td># ${actual_stock == null ? 'Infinito' : actual_stock}</td>
+            <td>$ ${formatNumber(ch.costo_adquisitivo ? ch.costo_adquisitivo : "0")}</td>
             <td>${ch.tecla ? `<span class="badge tecla-badge">${ch.tecla.toUpperCase()}</span>` : ""}</td>
             <td><button class="btn btn-outline-success" onclick="editProduct('${ch.id}')"><i class="fa-solid fa-pen"></i></button></td>
           </tr>`;
-        }).join('')}
+  }).join('')}
       </tbody>
     </table>
     <br><br>
@@ -2382,8 +2382,8 @@ function save_ingreso_productos(e) {
 
   if (product.caja == true) {
     let data_to_egreso = {
-      money: Number(`${product.price<0?"-":""}${product.price}`),
-      description: `${product.price < 0?"Egreso":"Ingreso"} de productos`,
+      money: Number(`${product.price < 0 ? "-" : ""}${product.price}`),
+      description: `${product.price < 0 ? "Egreso" : "Ingreso"} de productos`,
       date: new Date()
     }
 
@@ -2668,8 +2668,8 @@ function listIngresosEgresos() {
           ${caja.ingresos.map(ch => `
             <div class="card">
               <div class="card-body">
-                <span>${new Date(ch.date).toLocaleString()} - Hace ${getTimeLong(new Date()-new Date(ch.date))}</span>
-                <span>Descripción: ${ch.description?ch.description:"Sin descripción"}</span>
+                <span>${new Date(ch.date).toLocaleString()} - Hace ${getTimeLong(new Date() - new Date(ch.date))}</span>
+                <span>Descripción: ${ch.description ? ch.description : "Sin descripción"}</span>
                 <span>Valor de: ${ch.money} $</span>
                 <button class="btn btn-outline-danger d-inline-block" onclick="deleteIngreso('${ch.date}')"><i class="fa-solid fa-trash"></i> Eliminar</button>
               </div>
@@ -2680,8 +2680,8 @@ function listIngresosEgresos() {
           ${caja.egresos.map(ch => `
             <div class="card">
               <div class="card-body">
-                <span>${new Date(ch.date).toLocaleString()} - Hace ${getTimeLong(new Date()-new Date(ch.date))}</span>
-                <span>Descripción: ${ch.description?ch.description:"Sin descripción"}</span>
+                <span>${new Date(ch.date).toLocaleString()} - Hace ${getTimeLong(new Date() - new Date(ch.date))}</span>
+                <span>Descripción: ${ch.description ? ch.description : "Sin descripción"}</span>
                 <span>Valor de: ${ch.money} $</span>
                 <button class="btn btn-outline-danger d-inline-block" onclick="deleteEgreso('${ch.date}')"><i class="fa-solid fa-trash"></i> Eliminar</button>
               </div>
@@ -2711,8 +2711,8 @@ function generarExcelCierre(caja) {
 
   function productosDeVenta(v) {
     let arr = (Array.isArray(v.products) && v.products.length) ? v.products
-            : (Array.isArray(v.venta) && v.venta.length) ? v.venta
-            : [];
+      : (Array.isArray(v.venta) && v.venta.length) ? v.venta
+        : [];
     return converterArray(arr);
   }
   function lineaProducto(p) {
@@ -2950,7 +2950,7 @@ function sendCerrarCaja() {
     let observaciones = [];
     ultimateCaja.egresos.forEach((element, i, array) => {
       if (Number(element.money) == 0) {
-        observaciones.push(`Se abrio la caja ${element.description?(`para: `+element.description):"Sin motivo alguno."} `);
+        observaciones.push(`Se abrio la caja ${element.description ? (`para: ` + element.description) : "Sin motivo alguno."} `);
       }
       if (element.description.startsWith('Prestamo >')) {
         observaciones.push(`Se Hizo Un Prestamo A ${element.description.slice(10)}. Por Un Valor De: ${formatNumber(element.money)}`);
@@ -3471,9 +3471,9 @@ function renderComprasCliente(info, filtro) {
       <thead><tr><th># Vent</th><th>Fecha</th><th>Items</th><th>Total</th><th>Acciones</th></tr></thead>
       <tbody>
         ${filas.map(f => {
-          if (f.tipo === 'sep') return f.html;
-          let c = f.c;
-          return `
+      if (f.tipo === 'sep') return f.html;
+      let c = f.c;
+      return `
           <tr>
             <td>${c.ventaId}</td>
             <td>${formatDate(c.fecha)}</td>
@@ -3485,7 +3485,7 @@ function renderComprasCliente(info, filtro) {
             </td>
           </tr>
         `;
-        }).join('')}
+    }).join('')}
       </tbody>
     </table>`;
   }
@@ -3504,8 +3504,8 @@ function renderComprasCliente(info, filtro) {
   res.innerHTML = `${lineaPeriodo}
     <div class="alert ${filtro === 'rango' && rango ? 'secondary' : 'info'} p-2 small mb-0">
       ${filtro === 'rango' && rango
-        ? 'Total histórico (todo el historial): '
-        : 'Total comprado en el período seleccionado: '}<b>$ ${formatNumber(filtro === 'rango' && rango ? totalHistorico : subtotal)}</b>
+      ? 'Total histórico (todo el historial): '
+      : 'Total comprado en el período seleccionado: '}<b>$ ${formatNumber(filtro === 'rango' && rango ? totalHistorico : subtotal)}</b>
       en ${filtro === 'rango' && rango ? todas.length : filtradas.length} venta(s).
     </div>`;
 }
@@ -3722,19 +3722,19 @@ function importarClientes() {
           <div class="col-4">
             <label class="small">Columna Correo</label>
             <select id="colCorreo" class="form-select form-select-sm" onchange="previewImportarClientes()">
-              ${[0,1,2,3,4,5,6].map(n => `<option value="${n}">${n || "Ninguna"}</option>`).join('')}
+              ${[0, 1, 2, 3, 4, 5, 6].map(n => `<option value="${n}">${n || "Ninguna"}</option>`).join('')}
             </select>
           </div>
           <div class="col-4">
             <label class="small">Columna Ciudad</label>
             <select id="colCiudad" class="form-select form-select-sm" onchange="previewImportarClientes()">
-              ${[0,1,2,3,4,5,6].map(n => `<option value="${n}">${n || "Ninguna"}</option>`).join('')}
+              ${[0, 1, 2, 3, 4, 5, 6].map(n => `<option value="${n}">${n || "Ninguna"}</option>`).join('')}
             </select>
           </div>
           <div class="col-4">
             <label class="small">Columna Dirección</label>
             <select id="colDireccion" class="form-select form-select-sm" onchange="previewImportarClientes()">
-              ${[0,1,2,3,4,5,6].map(n => `<option value="${n}">${n || "Ninguna"}</option>`).join('')}
+              ${[0, 1, 2, 3, 4, 5, 6].map(n => `<option value="${n}">${n || "Ninguna"}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -4018,7 +4018,7 @@ function generarPDF(id, ele, pd) {
   var element = ele ? ele : document.querySelector('.factura-termica');
   let generado = html2pdf(element, {
     margin: pd ? pd : 0,
-    filename: `${id}-${new Date()-0}.pdf`,
+    filename: `${id}-${new Date() - 0}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2 },
     jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
@@ -4076,9 +4076,9 @@ function reciboVentaHTML(venta) {
     </div>
 
     ${productos.map(ch => {
-      let unitario = (ch.precio_unitario != null ? ch.precio_unitario : ch.price) || 0;
-      let valor = ch.precio_final != null ? ch.precio_final : (Number(unitario) * Number(ch.cantidad || 1));
-      return `
+    let unitario = (ch.precio_unitario != null ? ch.precio_unitario : ch.price) || 0;
+    let valor = ch.precio_final != null ? ch.precio_final : (Number(unitario) * Number(ch.cantidad || 1));
+    return `
       <div class="ft-item">
         <div class="ft-item-row">
           <span class="ft-col-desc">${ch.name}</span>
@@ -4086,7 +4086,7 @@ function reciboVentaHTML(venta) {
         </div>
         <div class="ft-sub">x${ch.cantidad} @ ${ftMoney(unitario)}</div>
       </div>`;
-    }).join('')}
+  }).join('')}
 
     <div class="ft-espacio"></div>
 
@@ -4177,7 +4177,7 @@ function setOpenFacturas() {
           <div class="card">
             <div class="card-body">
               <b>ID: </b> ${ch.id} | <b>Productos: </b> ${converterArray(ch.products).length} | <b>Recibido:</b> ${formatNumber(ch.recibido)}
-              <b>Total Pago: </b> ${formatNumber(ch.total_pago)} | <b>Cambio: </b> ${formatNumber(Number(ch.recibido)-Number(ch.total_pago))} - <b>Pagado a través de: ${ch.digital?("Transferencia Bancaria > "+ch.digital):"Efectivo > De Contado."}</b>
+              <b>Total Pago: </b> ${formatNumber(ch.total_pago)} | <b>Cambio: </b> ${formatNumber(Number(ch.recibido) - Number(ch.total_pago))} - <b>Pagado a través de: ${ch.digital ? ("Transferencia Bancaria > " + ch.digital) : "Efectivo > De Contado."}</b>
             </div>
             <div class="card-footer">
               <button class="btn btn-sm btn-outline-info" onclick="factVenta('${ch.id}')">Abrir</button>
@@ -4207,8 +4207,8 @@ function facturaViewIngreso(date) {
       <div class="facturar pd-1">
         <div class="factura-termica">
           <div class="factura-head">
-            <h3 class="text-center">${configs.name?configs.name:"Factura Desprendible"}</h3>
-            <p class="text-center">${configs.slogan?configs.slogan:"Para servirte"}</p>
+            <h3 class="text-center">${configs.name ? configs.name : "Factura Desprendible"}</h3>
+            <p class="text-center">${configs.slogan ? configs.slogan : "Para servirte"}</p>
             <br>
           </div>
           <b>Fecha: ${new Date(finding_ingreso.date).toLocaleDateString()}</b><br>
@@ -4270,8 +4270,8 @@ function facturaViewEgreso(date) {
       <div class="facturar pd-1">
         <div class="factura-termica">
           <div class="factura-head">
-            <h1 class="text-center">${configs.name?configs.name:"Factura Desprendible"}</h1>
-            <p class="text-center">${configs.slogan?configs.slogan:"Para servirte"}</p>
+            <h1 class="text-center">${configs.name ? configs.name : "Factura Desprendible"}</h1>
+            <p class="text-center">${configs.slogan ? configs.slogan : "Para servirte"}</p>
             <br>
           </div>
           <b>${new Date(finding_egreso.date).toLocaleDateString()}</b><br>
@@ -4369,8 +4369,8 @@ function imprimirPedido(id) {
       <div class="facturar pd-1">
           <div class="factura-termica">
             <div class="factura-head">
-              <h1 class="text-center">${configs.name?configs.name:"Factura Desprendible"}</h1>
-              <p class="text-center">${configs.slogan?configs.slogan:"Para servirte"}</p>
+              <h1 class="text-center">${configs.name ? configs.name : "Factura Desprendible"}</h1>
+              <p class="text-center">${configs.slogan ? configs.slogan : "Para servirte"}</p>
               <p class="text-center"><span style="font-size: 11pt;">${configs.user.name} <br> NIT: ${configs.user.document}</span> <br> Telefono: ${configs.user.phone}</p>
               <p class="text-center">${generarNumeroFactura(id, 'FP-')} - Dia:  ${formatDate(data.data.entrega)} - ${getDayName(fnformat(data.data.entrega))} A Las ${data.data.hora}</p>
             </div>
@@ -4380,13 +4380,13 @@ function imprimirPedido(id) {
             <br>
             <div>
               <b>Detalles: </b> ${data.data.detalles}
-            <span><b>Cliente:</b> <l class="change-user">${data.data.cliente?data.data.cliente:"Consumidor Final"}</l> - Telefono: ${data.data.phone_cliente}</span><br>
+            <span><b>Cliente:</b> <l class="change-user">${data.data.cliente ? data.data.cliente : "Consumidor Final"}</l> - Telefono: ${data.data.phone_cliente}</span><br>
             <span><b>Atendido por: </b> ${data.data.atendido}</span><br>
             <span class="price-data"><b>Total:</b> ${formatNumber(data.data.cotizar.total_pago)}</span><br>
             <span class="price-data"><b>Recibido / Abonado: </b> $ ${formatNumber(data.data.abono)}</span>
             <br>
             <span class="price-data"><b>Saldo Faltante:</b> $ ${formatNumber(data.data.saldo)}</span>
-            <h5 class="ft-background">${data.data.cancelado=="false"?"PENDIENTE":"CANCELADO"}</h5>
+            <h5 class="ft-background">${data.data.cancelado == "false" ? "PENDIENTE" : "CANCELADO"}</h5>
             <br>
             <p class="text-center">${configs.footer}</p>
           </div>
@@ -4492,7 +4492,7 @@ function adminPedido(id) {
       title: `Pedido ${id}`,
       content: `
         <div class="all-content-pedido">
-          <p>${fulldata.cancelado=="true"?"Pedido Cancelado, una vez entregado puedes finalizarlo":"Este pedido no esta cancelado por completo, asi que no podras finalizarlo."}</p>
+          <p>${fulldata.cancelado == "true" ? "Pedido Cancelado, una vez entregado puedes finalizarlo" : "Este pedido no esta cancelado por completo, asi que no podras finalizarlo."}</p>
           <span><b>Salto Total: </b> ${formatNumber(fulldata.cotizar.total_pago)}</span><br>
           <span><b>Recibido / Abonado: </b> ${formatNumber(fulldata.abono)}</span><br><br>
           <span><b>Saldo Pendiente: </b> ${formatNumber(fulldata.saldo)}</span><br>
@@ -4504,7 +4504,7 @@ function adminPedido(id) {
             <button class="btn btn-outline-primary"><i class="fa-solid fa-money-bill"></i> Agregar Pago</button>
           </form>
           <br>
-          <button class="btn btn-outline-success" onclick="finalizarPedido('${id}')" ${fulldata.cancelado=="true"?"":"disabled"}><i class="fa-solid fa-receipt"></i> Finalizar Pedido</button>
+          <button class="btn btn-outline-success" onclick="finalizarPedido('${id}')" ${fulldata.cancelado == "true" ? "" : "disabled"}><i class="fa-solid fa-receipt"></i> Finalizar Pedido</button>
           <button class="btn btn-outline-danger" onclick="deletePedido('${id}')"><i class="fa-solid fa-trash"></i> Eliminar Pedido</button>
         </div>
       `
@@ -4544,7 +4544,7 @@ function confirmarPedido(id) {
       icon: "error"
     });
 
-    let productsList = converterArray(data.data.products?data.data.products:{});
+    let productsList = converterArray(data.data.products ? data.data.products : {});
     let total_pago = 0;
 
     productsList.map(ch => total_pago = total_pago + importeLinea(ch));
@@ -4576,12 +4576,12 @@ function updatePedidos() {
   socket.once('getPedidos', (data) => {
     let pedidos = document.querySelector('.container-pedidos');
 
-    if(!pedidos) return;
+    if (!pedidos) return;
     let arreglo_pedidos = converterArray(data.pedidos).reverse();
 
     pedidos.innerHTML = arreglo_pedidos.map(ch => `
       <div class="card">
-        <div class="card-header">${ch.cliente} - ${ch.cancelado=="true"?"<span class='increase'>Cancelado</span>":"<span class='decrease'>Debe</span>"}</div>
+        <div class="card-header">${ch.cliente} - ${ch.cancelado == "true" ? "<span class='increase'>Cancelado</span>" : "<span class='decrease'>Debe</span>"}</div>
         <div class="card-body">
           <span class="detalles" style="white-space: pre-wrap;">${ch.detalles}</span>
           <span>Fecha de entrega: ${ch.hora} - ${ch.entrega}</span>
@@ -4663,18 +4663,18 @@ function openCreatePedido(mayor) {
     if (mayor) {
       finalPrice = finalPrice + importeLinea(ch, true);
 
-      return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price_mayor?ch.price_mayor:ch.price + ' (Este producto no tiene precio por mayor)')} | Precio Final: ${formatNumber(importeLinea(ch, true))}</div>`;
+      return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad ? ch.cantidad : 1} | Precio Unitario: ${formatNumber(ch.price_mayor ? ch.price_mayor : ch.price + ' (Este producto no tiene precio por mayor)')} | Precio Final: ${formatNumber(importeLinea(ch, true))}</div>`;
     } else {
       finalPrice = finalPrice + importeLinea(ch);
 
-      return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad?ch.cantidad:1} | Precio Unitario: ${formatNumber(ch.price)} | Precio Final: ${formatNumber(importeLinea(ch))}</div>`;
+      return `<hr> <div class="product bt-1">ID: ${ch.id} | ${ch.name} | Cantidad: ${ch.cantidad ? ch.cantidad : 1} | Precio Unitario: ${formatNumber(ch.price)} | Precio Final: ${formatNumber(importeLinea(ch))}</div>`;
     }
   }).join('')
 
   getClientesVenta((clientesPedido) => {
-  popup.open({
-    title: "Crear Pedido",
-    content: `
+    popup.open({
+      title: "Crear Pedido",
+      content: `
       <form class="super-form-create-pedido" onsubmit="return sendCreatePedido(this)">
         <div class="buscador-cliente">
           <label>Cliente (buscar por nombre o número de identidad)</label>
@@ -4699,11 +4699,11 @@ function openCreatePedido(mayor) {
         <div class="total-pagar"><b>Total:</b> ${formatNumber(finalPrice)}</div>
         <label>Abono</label>
         <input class="form-control numberify-input-commas" placeholder="$ 10,000" type="text">
-        <input type="hidden" value="${mayor?'true':"false"}">
+        <input type="hidden" value="${mayor ? 'true' : "false"}">
         <input type="hidden" id="clienteId" value="">
         <br><br>
         <button class="btn btn-outline-primary">Generar Pedido</button>
-        <a class="btn btn-outline-info" onclick="${mayor?"openCreatePedido()":"openCreatePedido(true)"}">Cambiar A ${mayor?"Normal":"Por Mayor"}</a>
+        <a class="btn btn-outline-info" onclick="${mayor ? "openCreatePedido()" : "openCreatePedido(true)"}">Cambiar A ${mayor ? "Normal" : "Por Mayor"}</a>
       </form>
     `
     });
@@ -4951,32 +4951,32 @@ function editarRol(name) {
 
     let keys_perms = finding_role;
     let all_permissions = [{
-        input: "Administración",
-        perm: "all"
-      },
-      {
-        input: "Manejar y editar productos",
-        perm: "productManager"
-      },
-      {
-        input: "Modificar y eliminar usuarios",
-        perm: "userManager"
-      },
-      {
-        input: "Modificar y eliminar roles",
-        perm: "roleManager"
-      },
-      {
-        input: "Manejar clientes",
-        perm: "clientManager"
-      },
-      {
-        input: "Poder facturar",
-        perm: "facturar"
-      }, {
-        input: "Mirar facturas, ventas y otros datos de la aplicación",
-        perm: "view"
-      }
+      input: "Administración",
+      perm: "all"
+    },
+    {
+      input: "Manejar y editar productos",
+      perm: "productManager"
+    },
+    {
+      input: "Modificar y eliminar usuarios",
+      perm: "userManager"
+    },
+    {
+      input: "Modificar y eliminar roles",
+      perm: "roleManager"
+    },
+    {
+      input: "Manejar clientes",
+      perm: "clientManager"
+    },
+    {
+      input: "Poder facturar",
+      perm: "facturar"
+    }, {
+      input: "Mirar facturas, ventas y otros datos de la aplicación",
+      perm: "view"
+    }
     ]
 
     popup.open({
@@ -4985,7 +4985,7 @@ function editarRol(name) {
         <form onsubmit="return editandoRol(this, '${name}')">
           <div class="listing">
             ${all_permissions.map(ch => `
-              <input type="checkbox" ${!finding_role[ch.perm]==true?"non":"checked"}>
+              <input type="checkbox" ${!finding_role[ch.perm] == true ? "non" : "checked"}>
               <label htmlFor="">${ch.input}</label>
               <br>
             `).join('')}
@@ -5074,26 +5074,26 @@ function updateConfigs() {
         <form onsubmit="return saveConfigsBasic(this)">
           <label>Nombre de la empresa</label>
           <p>Este nombre aparecera en las facturas desprendibles</p>
-          <input class="form-control" type="text" value="${configs.name?configs.name:''}" placeholder="Ejem: SIOPS Solutions">
+          <input class="form-control" type="text" value="${configs.name ? configs.name : ''}" placeholder="Ejem: SIOPS Solutions">
           <br>
           <label>Eslogan</label>
           <p>El texto que aparece debajo del titulo en los desprendibles</p>
-          <input type="text" class="form-control" value="${configs.slogan?configs.slogan:''}" placeholder="Ejem: Para servirte :)">
+          <input type="text" class="form-control" value="${configs.slogan ? configs.slogan : ''}" placeholder="Ejem: Para servirte :)">
           <label htmlFor="">Pie de pagina</label>
           <p>El texto que aparece al final de cada factura</p>
           <input type="text" class="form-control" placeholder="Gracias por la compra">
           <hr>
           <h5>Información del dueño / vendedor</h5>
           <label htmlFor="">Nombre del vendedor</label>
-          <input type="text" value="${configs.user.name?configs.user.name:""}" class="form-control" placeholder="Ejem: Jhon Doe Arnuld">
+          <input type="text" value="${configs.user.name ? configs.user.name : ""}" class="form-control" placeholder="Ejem: Jhon Doe Arnuld">
           <label>Documento o NIT valido</label>
-          <input type="text" class="form-control" placeholder="Ejem: 1112929019" value="${configs.user.document?configs.user.document:""}">
+          <input type="text" class="form-control" placeholder="Ejem: 1112929019" value="${configs.user.document ? configs.user.document : ""}">
           <label htmlFor="">Numero de telefono</label>
-          <input type="number" value="${configs.user.phone?configs.user.phone:""}" class="form-control" placeholder="Ejem: 3112232020">
+          <input type="number" value="${configs.user.phone ? configs.user.phone : ""}" class="form-control" placeholder="Ejem: 3112232020">
           <label htmlFor="">Correo Electronico</label>
-          <input type="text" class="form-control" value="${configs.user.email?configs.user.email:""}" placeholder="email@example.com">
+          <input type="text" class="form-control" value="${configs.user.email ? configs.user.email : ""}" placeholder="email@example.com">
           <label htmlFor="">Dirección del establecimiento</label>
-          <input type="text" class="form-control" value="${configs.user.direct?configs.user.direct:""}" placeholder="Ejem: Calle 12 #9-23 Fortul - Arauca">
+          <input type="text" class="form-control" value="${configs.user.direct ? configs.user.direct : ""}" placeholder="Ejem: Calle 12 #9-23 Fortul - Arauca">
           <br>
           <button class="btn btn-outline-primary">Guardar Marca</button>
         </form>
@@ -5862,12 +5862,26 @@ function exportarExcelVentasClientes() {
     return Toast.fire({ title: "Excel Ventas", text: "Aún no se cargan los clientes; recarga la página e intenta de nuevo.", icon: "warning" });
   }
 
-  let desdeMs = new Date(desde + 'T00:00:00') - 0;
-  let hastaMs = new Date(hasta + 'T23:59:59.999') - 0;
+  let desdeMs = new Date(desde + 'T00:00:00').getTime();
+  let hastaMs = new Date(hasta + 'T23:59:59.999').getTime();
 
-  let mapaClientes = {};
-  (window._clientesPagina || []).forEach(c => { mapaClientes[String(c.id)] = c; });
-  let clienteDeVenta = (v) => mapaClientes[String(v.clienteId != null && v.clienteId !== '' ? v.clienteId : (v.deudorId != null ? v.deudorId : ''))] || null;
+  let mapaClientesPorId = {};
+  let mapaClientesPorNombre = {};
+  (window._clientesPagina || []).forEach(c => { 
+    if (c.id != null) mapaClientesPorId[String(c.id)] = c;
+    if (c.name != null) mapaClientesPorNombre[String(c.name).trim().toLowerCase()] = c;
+    if (c.nombre != null) mapaClientesPorNombre[String(c.nombre).trim().toLowerCase()] = c;
+  });
+
+  let clienteDeVenta = (v) => {
+    let id = v.clienteId != null && v.clienteId !== '' ? v.clienteId : (v.deudorId != null ? v.deudorId : null);
+    if (id != null && mapaClientesPorId[String(id)]) return mapaClientesPorId[String(id)];
+    if (v.cliente) {
+      let nomKey = String(v.cliente).trim().toLowerCase();
+      if (mapaClientesPorNombre[nomKey]) return mapaClientesPorNombre[nomKey];
+    }
+    return null;
+  };
 
   let etiquetaFiltro = (fCat || fPro || fCond)
     ? ' - ' + [
@@ -5886,9 +5900,17 @@ function exportarExcelVentasClientes() {
     if (!data.data) return Toast.fire({ title: "Excel Ventas", text: data.message || "No se pudieron cargar las ventas.", icon: "error" });
 
     let ventas = converterArray(data.data).filter(v => {
-      let d = Number(v.date || 0);
+      // Normalización robusta de la fecha
+      let d = 0;
+      if (typeof v.date === 'number') d = v.date;
+      else if (typeof v.date === 'string') {
+        d = new Date(v.date.includes('T') ? v.date : v.date.replace(/-/g, '/') + ' 00:00:00').getTime();
+      }
+      if (!d && v.fecha) d = new Date(v.fecha).getTime();
+
       if (d && d < desdeMs) return false;
       if (d && d > hastaMs) return false;
+
       if (fCat || fPro) {
         let c = clienteDeVenta(v);
         if (fCat && (!c || String(c.categoria || '') !== fCat)) return false;
@@ -5903,9 +5925,9 @@ function exportarExcelVentasClientes() {
     function productosDeVenta(v) {
       let arr = Array.isArray(v.products) ? v.products
         : (v.products && typeof v.products === 'object') ? v.products
-        : Array.isArray(v.venta) ? v.venta
-        : (v.venta && typeof v.venta === 'object') ? v.venta
-        : [];
+          : Array.isArray(v.venta) ? v.venta
+            : (v.venta && typeof v.venta === 'object') ? v.venta
+              : [];
       return converterArray(arr);
     }
     function lineaProducto(p) {
@@ -5925,7 +5947,6 @@ function exportarExcelVentasClientes() {
       if (v.total_recibido != null) return Number(v.total_recibido);
       return totalVenta(v);
     }
-    // CONDICION DE PAGO SEGUN LO ACTUALMENTE REGISTRADO: v.type y v.digital NO se guardan en la venta, por eso se deduce de recibido vs total_pago
     function condicionVenta(v) {
       let total = totalVenta(v);
       let recibido = recibidoVenta(v);
@@ -6007,16 +6028,16 @@ function exportarExcelVentasClientes() {
       cols.forEach(c => {
         val[c.id] = c.id === 'unidades' ? Math.round(unidades * 1000) / 1000
           : c.id === 'productos' ? txt.join('; ')
-          : c.id === 'recibido' ? textoRecibido
-          : c.id === 'cambio' ? celdaCambio
-          : c.id === 'saldo' ? (saldo < 0.005 ? '---' : saldo)
-          : c.id === 'total' ? total
-          : c.id === 'fecha' ? fechaVenta(v)
-          : c.id === 'tipo' ? metodoPagoVenta(v)
-          : c.id === 'condicion' ? condicionVenta(v)
-          : c.id === 'cliente' ? clienteVenta(v)
-          : c.id === 'documento' ? documentoCliente(v)
-          : '';
+            : c.id === 'recibido' ? textoRecibido
+              : c.id === 'cambio' ? celdaCambio
+                : c.id === 'saldo' ? (saldo < 0.005 ? '---' : saldo)
+                  : c.id === 'total' ? total
+                    : c.id === 'fecha' ? fechaVenta(v)
+                      : c.id === 'tipo' ? metodoPagoVenta(v)
+                        : c.id === 'condicion' ? condicionVenta(v)
+                          : c.id === 'cliente' ? clienteVenta(v)
+                            : c.id === 'documento' ? documentoCliente(v)
+                              : '';
       });
       aoa.push([i + 1, ...cols.map(c => val[c.id])]);
     });
@@ -6024,9 +6045,9 @@ function exportarExcelVentasClientes() {
     cols.forEach(c => {
       tot[c.id] = c.id === 'recibido' ? sumRecibido
         : c.id === 'total' ? sumTotal
-        : c.id === 'cambio' ? '---'
-        : c.id === 'saldo' ? sumSaldo
-        : '';
+          : c.id === 'cambio' ? '---'
+            : c.id === 'saldo' ? sumSaldo
+              : '';
     });
     aoa.push(['TOTAL', ...cols.map(c => tot[c.id])]);
 
@@ -6076,12 +6097,31 @@ function exportarExcelVentasClientes() {
     hoja.columns = [{ width: 6 }, ...cols.map(c => ({ width: c.width }))];
     estilizarHoja(hoja, aoa, { cols, numCols, colsDinero });
 
+    // --- AGRUPACIÓN CORREGIDA PARA PESTAÑA TOTALES ---
     let grupos = {};
     ventas.forEach((v) => {
-      let cid = (v.clienteId != null && String(v.clienteId) !== '') ? v.clienteId
-        : ((v.deudorId != null && String(v.deudorId) !== '') ? v.deudorId : null);
-      let key = cid == null ? 'cf' : ('id:' + cid);
-      let g = grupos[key] || (grupos[key] = { key, cid, nombre: '', doc: '', fecha: 0, n: 0, recibido: 0, total: 0, saldo: 0 });
+      let cObj = clienteDeVenta(v);
+      let key = '';
+      if (cObj && cObj.id != null) {
+        key = 'id:' + cObj.id;
+      } else if (v.cliente && String(v.cliente).trim() !== '') {
+        key = 'nom:' + String(v.cliente).trim().toLowerCase();
+      } else {
+        key = 'cf';
+      }
+
+      let g = grupos[key] || (grupos[key] = { 
+        key, 
+        cObj, 
+        nombre: v.cliente || (cObj ? (cObj.name || cObj.nombre) : 'Consumidor Final'), 
+        doc: cObj ? (cObj.document || cObj.doc || '') : '', 
+        fecha: 0, 
+        n: 0, 
+        recibido: 0, 
+        total: 0, 
+        saldo: 0 
+      });
+
       g.n++;
       g.recibido += recibidoVenta(v);
       g.total += totalVenta(v);
@@ -6089,15 +6129,8 @@ function exportarExcelVentasClientes() {
       let d = Number(v.date || 0);
       if (d > g.fecha) g.fecha = d;
     });
+
     let garr = Object.values(grupos);
-    garr.forEach(g => {
-      if (g.cid == null) {
-        g.nombre = 'Consumidor Final';
-      } else {
-        g.nombre = clienteVenta({ clienteId: g.cid, deudorId: g.cid });
-        g.doc = documentoCliente({ clienteId: g.cid, deudorId: g.cid });
-      }
-    });
     garr.sort((a, b) => (b.total - a.total) || (b.recibido - a.recibido));
 
     let totalTotal = 0, totalDeuda = 0, totalContado = 0;
@@ -6110,8 +6143,6 @@ function exportarExcelVentasClientes() {
       ['#', ...colsTotales.map(c => c.label)]
     ];
     garr.forEach((g, i) => {
-      // Deuda = saldo de las ventas DENTRO del rango. Contado se deriva del total
-      // para que SIEMPRE se cumpla: Total vendido = En Deuda + A Contado.
       let deudaGrupo = g.saldo < 0.005 ? 0 : g.saldo;
       let contadoGrupo = g.total - deudaGrupo;
       if (contadoGrupo < 0.005) contadoGrupo = 0;
@@ -6122,10 +6153,10 @@ function exportarExcelVentasClientes() {
       colsTotales.forEach(c => {
         val[c.id] = c.id === 'cliente' ? g.nombre
           : c.id === 'documento' ? g.doc
-          : c.id === 'total' ? g.total
-          : c.id === 'deuda' ? deudaGrupo
-          : c.id === 'contado' ? contadoGrupo
-          : '';
+            : c.id === 'total' ? g.total
+              : c.id === 'deuda' ? deudaGrupo
+                : c.id === 'contado' ? contadoGrupo
+                  : '';
       });
       aoaTotales.push([i + 1, ...colsTotales.map(c => val[c.id])]);
     });
@@ -6133,8 +6164,8 @@ function exportarExcelVentasClientes() {
     colsTotales.forEach(c => {
       totG[c.id] = c.id === 'total' ? totalTotal
         : c.id === 'deuda' ? totalDeuda
-        : c.id === 'contado' ? totalContado
-        : '';
+          : c.id === 'contado' ? totalContado
+            : '';
     });
     aoaTotales.push(['TOTAL', ...colsTotales.map(c => totG[c.id])]);
 
@@ -6149,7 +6180,6 @@ function exportarExcelVentasClientes() {
       const a = document.createElement('a');
       a.href = url;
       a.download = nombreArchivo;
-      document.body.appendChild(a);
       a.click();
       setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
     });
