@@ -1785,7 +1785,7 @@ class Database {
 		let clientes = this.db.getData('/data/simple/clientes');
 
 		// Extrae y aplanar todas las compras de la lista de clientes
-		let ventas = clientes.flatMap(cliente => cliente.compras || []);
+		let ventas = converterArray(clientes).flatMap(cliente => cliente.compras || []);
 
 		return { message: "Lista de todas las ventas", data: ventas };
 	}
