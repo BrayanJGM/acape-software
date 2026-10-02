@@ -3926,6 +3926,9 @@ router.get('/clientes', () => {
         <select id="filtroVentasProviene" class="form-select" style="max-width:200px">
           <option value="">Proviene de: todos</option>
         </select>
+        <select id="filtroVentasCliente" class="form-select" style="max-width:220px">
+          <option value="">Cliente: todos</option>
+        </select>
         <select id="filtroVentasCondicion" class="form-select" style="max-width:210px">
           ${CONDICIONES_EXCEL_VENTAS.map(c => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.label)}</option>`).join('')}
         </select>
@@ -5901,47 +5904,35 @@ function exportarExcelVentasClientes() {
   });
 
   let clienteDeVenta = (v) => {
-    // El backend ya manda categoria/proviene en la venta (v.categoria / v.proviene).
-    // Se usan primero para no depender de que el cliente este cargado en el
-    // frontend: con 366 clientes la ficha no siempre esta en _clientesPagina y
-    // antes eso hacia que el filtro descartara la venta entera.
-    if (v && (v.categoria != null || v.proviene != null)) {
-      return {
-        id: v.clienteId,
-        name: v.cliente,
-        categoria: v.categoria != null ? String(v.categoria) : '',
-        proviene: v.proviene != null ? String(v.proviene) : ''
-      };
-    }
-    let id = v.clienteId != null && v.clienteId !== '' ? v.clienteId : (v.deudorId != null ? v.deudorId : null);
-    if (id != null && mapaClientesPorId[String(id)]) return mapaClientesPorId[String(id)];
-    if (v.cliente) {
-      let nomKey = String(v.cliente).trim().toLowerCase();
-      if (mapaClientesPorNombre[nomKey]) return mapaClientesPorNombre[nomKey];
+    // Con la respuesta agrupada, la venta guarda el id del cliente al que pertenece
+    // y los datos de la ficha se resuelven en el recorrido de clientes. Este fallback
+    // cubre el caso de que una venta llegue suelta.
+    if (v) {
+      let id = v.clienteId != null && v.clienteId !== '' ? v.clienteId : (v.deudorId != null ? v.deudorId : null);
+      if (id != null && mapaClientesPorId[String(id)]) return mapaClientesPorId[String(id)];
+      if (v.cliente) {
+        let nomKey = String(v.cliente).trim().toLowerCase();
+        if (mapaClientesPorNombre[nomKey]) return mapaClientesPorNombre[nomKey];
+      }
     }
     return null;
   };
 
-  // VENTAS QUE EL FILTRO NO PUEDE CLASIFICAR: antes se descartaban en silencio
-  // cuando no habia categoria/proviene, y eso hacia que el total del Excel
-  // quedara por debajo del panel sin explicacion. Ahora se cuentan y se avisa.
-  let ventasSinClasificar = 0;
+// VENTAS QUE QUEDARON FUERA POR NO TENER EL DATO DE CATEGORIA O PROVIENE. Un cliente
+  // que tiene el dato pero de otro valor es un filtro normal y no se reporta; solo se
+  // avisa de los que no tienen el dato, porque de no saber a que grupo pertenecen.
+  let ventasSinDato = 0;
+  let montoSinDato = 0;
+  let clientesSinDato = new Set();
 
-  let coincideCategoria = (v, valor) => {
-    let dato = v.categoria != null ? String(v.categoria).trim() : '';
-    if (!dato) return null; // sin dato: no se puede affirmar ni negar
-    return dato === String(valor || '').trim();
-  };
-  let coincideProviene = (v, valor) => {
-    let dato = v.proviene != null ? String(v.proviene).trim() : '';
-    if (!dato) return null;
-    return dato === String(valor || '').trim();
-  };
+  let coincideDato = (dato, valor) => String(dato == null ? '' : dato).trim() === String(valor || '').trim();
+  let sinDato = (dato) => String(dato == null ? '' : dato).trim() === '';
 
-  let etiquetaFiltro = (fCat || fPro || fCond)
+  let partesFiltro = (extra) => (fCat || fPro || fCond || extra)
     ? ' - ' + [
       fCat ? 'Cat: ' + fCat : '',
       fPro ? 'Proviene: ' + fPro : '',
+      extra || '',
       fCond ? 'Condición: ' + fCond : ''
     ].filter(Boolean).join(' / ')
     : '';
@@ -5954,40 +5945,67 @@ function exportarExcelVentasClientes() {
   socket.once('getAllClientesVentas', (data) => {
     if (!data.data) return Toast.fire({ title: "Excel Ventas", text: data.message || "No se pudieron cargar las ventas.", icon: "error" });
 
-    let rawVentas = converterArray(data.data);
-    console.log("Ventas recibidas del servidor:", rawVentas.length);
+    // 1. EL BACKEND ENTREGA CLIENTES CON SUS VENTAS (no una lista plana), porque la
+    // categoria y el proviene son del cliente. Por eso el filtro va en cascada: primero
+    // se decide que clientes entran, y despues se filtran las ventas de cada uno.
+    let todosClientes = converterArray(data.data);
+    console.log("Clientes recibidos del servidor:", todosClientes.length);
 
-    let ventas = rawVentas.filter(v => {
-      // 1. FECHA (mismo helper que usa el panel de compras)
-      let d = fechaVentaMs(v);
+    // El desplegable de clientes se arma con los que traen ventas, para no ofrecer
+    // un cliente que no puede aparecer en el archivo.
+    let selCliente = document.getElementById('filtroVentasCliente');
+    if (selCliente) {
+      let previo = selCliente.value;
+      let conVentas = todosClientes.filter(c => (c.ventas || []).length);
+      selCliente.innerHTML = '<option value="">Cliente: todos</option>' + conVentas
+        .slice()
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+        .map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || ('Cliente ' + c.id))}</option>`)
+        .join('');
+      if (previo) selCliente.value = previo;
+    }
+    let fCli = (selCliente && selCliente.value) ? selCliente.value : '';
 
-      // Si sigue sin haber fecha, usar la fecha actual para no perder la venta en el reporte
-      if (!d) d = Date.now();
+    let clienteElegido = fCli ? todosClientes.find(c => String(c.id) === String(fCli)) : null;
+    let etiquetaFiltro = partesFiltro(clienteElegido ? 'Cliente: ' + (clienteElegido.name || fCli) : '');
 
-      // 2. FILTRAR POR FECHA
-      if (d < desdeMs || d > hastaMs) return false;
-
-      // 3. FILTRAR POR CATEGORÍA / PROVIENE
-      // Sin dato en la venta no se descarta: se cuenta y se avisa al final, porque
-      // descartarla en silencio hacia que el total quedara por debajo del panel.
-      if (fCat || fPro) {
-        if (fCat) {
-          let okCat = coincideCategoria(v, fCat);
-          if (okCat === false) return false;
-          if (okCat === null) ventasSinClasificar++;
-        }
-        if (fPro) {
-          let okPro = coincideProviene(v, fPro);
-          if (okPro === false) return false;
-          if (okPro === null && !fCat) ventasSinClasificar++;
-        }
+    let clientesFiltrados = todosClientes.filter(c => {
+      if (fCli && String(c.id) !== String(fCli)) return false;
+      if (fCat && !coincideDato(c.categoria, fCat)) {
+        if (sinDato(c.categoria)) clientesSinDato.add(c.id);
+        return false;
       }
-
-      // 4. FILTRAR POR CONDICIÓN
-      if (fCond && condicionVenta(v) !== fCond) return false;
-
+      if (fPro && !coincideDato(c.proviene, fPro)) {
+        if (sinDato(c.proviene)) clientesSinDato.add(c.id);
+        return false;
+      }
       return true;
-    }).sort((a, b) => fechaVentaMs(a) - fechaVentaMs(b));
+    });
+
+    // 2. VENTAS: primero el rango de fechas, luego la condicion (que es de la venta).
+    // La categoria y el proviene ya se resolvieron en el paso del cliente.
+    let ventas = [];
+    clientesFiltrados.forEach(c => {
+      (c.ventas || []).forEach(v => {
+        let d = fechaVentaMs(v);
+        if (!d) d = Date.now(); // sin fecha legible se usa hoy, para no perderla
+        if (d < desdeMs || d > hastaMs) return;
+        if (fCond && condicionVenta(v) !== fCond) return;
+        ventas.push(v);
+      });
+    });
+
+    // Lo que se descarto porque el cliente no tiene el dato, para avisar al final
+    clientesSinDato.forEach(id => {
+      let c = todosClientes.find(x => String(x.id) === String(id));
+      if (!c) return;
+      (c.ventas || []).forEach(v => {
+        ventasSinDato++;
+        montoSinDato += Number(v.total_pago || 0);
+      });
+    });
+
+    ventas.sort((a, b) => fechaVentaMs(a) - fechaVentaMs(b));
 
     console.log("Ventas filtradas a exportar:", ventas.length);
 
@@ -6176,18 +6194,21 @@ function exportarExcelVentasClientes() {
     hoja.columns = [{ width: 6 }, ...cols.map(c => ({ width: c.width }))];
     estilizarHoja(hoja, aoa, { cols, numCols, colsDinero });
 
-    // --- AGRUPACIÓN CORREGIDA PARA PESTAÑA TOTALES ---
+    // --- AGRUPACIÓN PARA LA PESTAÑA TOTALES ---
+    // Como la respuesta ya viene agrupada por cliente, se recorre la lista de clientes
+    // que sobrevivieron al filtro y se le enganchan sus ventas. La deuda se toma de la
+    // ficha (cliente.deuda), que es la misma que ve el usuario en el panel del cliente y
+    // ya se verificó que cuadra con la suma de los movimientos de deuda.
+    let fichaPorId = {};
+    clientesFiltrados.forEach(c => { if (c && c.id != null) fichaPorId[String(c.id)] = c; });
+
     let grupos = {};
     ventas.forEach((v) => {
-      let cObj = clienteDeVenta(v);
-      let key = '';
-      if (cObj && cObj.id != null) {
-        key = 'id:' + cObj.id;
-      } else if (v.cliente && String(v.cliente).trim() !== '') {
-        key = 'nom:' + String(v.cliente).trim().toLowerCase();
-      } else {
-        key = 'cf';
-      }
+      let cId = v.clienteId != null && v.clienteId !== '' ? v.clienteId : v.deudorId;
+      let cObj = (cId != null && fichaPorId[String(cId)]) ? fichaPorId[String(cId)] : clienteDeVenta(v);
+      let key = (cId != null && cId !== '') ? 'id:' + cId
+        : (v.cliente && String(v.cliente).trim() !== '') ? 'nom:' + String(v.cliente).trim().toLowerCase()
+          : 'cf';
 
       let g = grupos[key] || (grupos[key] = { 
         key, 
@@ -6222,7 +6243,10 @@ function exportarExcelVentasClientes() {
       ['#', ...colsTotales.map(c => c.label)]
     ];
     garr.forEach((g, i) => {
-      let deudaGrupo = g.saldo < 0.005 ? 0 : g.saldo;
+      // La deuda sale de la ficha del cliente, no de la suma de saldos del rango: asi
+      // el Excel muestra exactamente la misma deuda que el panel del cliente.
+      let deudaFicha = g.cObj && g.cObj.deuda != null ? Number(g.cObj.deuda) : 0;
+      let deudaGrupo = !isNaN(deudaFicha) && deudaFicha > 0.005 ? deudaFicha : 0;
       let contadoGrupo = g.total - deudaGrupo;
       if (contadoGrupo < 0.005) contadoGrupo = 0;
       totalTotal += g.total;
@@ -6262,12 +6286,13 @@ function exportarExcelVentasClientes() {
       a.click();
       setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
 
-      // Las ventas sin categoria/proviene no se pueden filtrar, pero tampoco se
-      // deben perder: quedan en el Excel y se avisa cuantas fueron.
-      if (ventasSinClasificar > 0) {
+      // Con filtro de categoria/proviene activo, las ventas de los clientes que NO tienen ese
+      // dato quedan fuera del archivo (no se puede afirmar que sean de la categoria
+      // pedida). Se avisa cuantas, para que el total del archivo sea interpretable.
+      if (ventasSinDato > 0) {
         Toast.fire({
           title: "Excel Ventas",
-          text: `${ventasSinClasificar} venta(s) no tienen categoría/proviene y no se pudieron filtrar (están incluidas en el archivo).`,
+          text: `Se excluyeron ${ventasSinDato} venta(s) de ${clientesSinDato.size} cliente(s) sin categoría/proviene asignada (${formatNumber(Math.round(montoSinDato * 100) / 100)}).`,
           icon: 'warning'
         });
       }

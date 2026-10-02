@@ -1824,10 +1824,6 @@ class Database {
 			vueltas: 0,
 			clienteId: cliente.id,
 			cliente: cliente.name,
-			// La categoria y el proviene viajan con la venta para que el Excel pueda
-			// filtrar sin depender de que el cliente este cargado en el frontend.
-			categoria: cliente.categoria != null ? String(cliente.categoria).trim() : "",
-			proviene: cliente.proviene != null ? String(cliente.proviene).trim() : "",
 			origen: "clientes"
 		};
 
@@ -1851,11 +1847,16 @@ class Database {
 		return { message: "Lista de todas las ventas", data: ventas };
 	}
 
-	// VENTAS DE LOS CLIENTES: todas las compras de todos los clientes, pero ya con el
-	// formato de la carpeta de ventas para que el reporte de Excel pueda usar los mismos
-	// campos (productos con id y precio unitario, recibido, total, cliente, fecha).
+	// VENTAS DE LOS CLIENTES: devuelve los clientes con SUS compras ya convertidas al
+	// formato de la carpeta de ventas (productos con id y precio unitario, recibido,
+	// total, fecha), para que el reporte de Excel use los mismos campos que la caja.
 	// A diferencia de la caja, estas compras no se borran al cerrar la caja.
-	// El data va indexado por id de venta.
+	//
+	// El data va AGRUPADO POR CLIENTE y no como una lista plana de ventas, porque la
+	// categoria y el proviene son datos del cliente, no de la venta: asi el Excel
+	// filtra primero los clientes y despues las ventas de cada uno. Con la lista plana
+	// una venta sin categoria no se podia decidir si entraba o no, y terminaba colandose
+	// en el archivo aunque no fuera de la categoria pedida.
 	getAllClientesVentas(data) {
 		let validateUser = this.validatePerms(data, 'view');
 		if (!validateUser) return { message: "No tienes permisos suficientes para ver las ventas" };
@@ -1870,29 +1871,27 @@ class Database {
 			}
 		});
 
-		let ventas = [];
-		let contadorGlobal = 1;
+		let listaClientes = [];
 
 		converterArray(clientes).forEach(cliente => {
 			if (!cliente) return;
 
-			let comprasCliente = converterArray(cliente.compras || {});
+			let ventas = converterArray(cliente.compras || {})
+				.filter(compra => !!compra)
+				.map(compra => this._normalizarCompraAVenta(compra, cliente, productosPorNombre));
 
-			comprasCliente.forEach(compra => {
-				if (!compra) return;
-
-				let ventaNormalizada = this._normalizarCompraAVenta(compra, cliente, productosPorNombre);
-
-				// Asegurar un clienteId en la venta para el mapeo en el frontend
-				if (!ventaNormalizada.clienteId && cliente.id) {
-					ventaNormalizada.clienteId = cliente.id;
-				}
-
-				ventas.push(ventaNormalizada);
+			listaClientes.push({
+				id: cliente.id,
+				name: cliente.name,
+				document: cliente.document != null ? cliente.document : "",
+				categoria: cliente.categoria != null ? String(cliente.categoria).trim() : "",
+				proviene: cliente.proviene != null ? String(cliente.proviene).trim() : "",
+				deuda: redondearMoneda(Number(cliente.deuda || 0)),
+				ventas: ventas
 			});
 		});
 
-		return { message: "Lista de todas las ventas de los clientes", data: ventas };
+		return { message: "Clientes con sus ventas", data: listaClientes };
 	}
 
 	// -------------------------------------------------------------------------------
