@@ -1780,14 +1780,108 @@ class Database {
 	}
 
 
-	// OPTIMIZADA
-	getAllVentas() {
-		let clientes = this.db.getData('/data/simple/clientes');
+	// CONVIERTE UNA COMPRA DE LA FICHA DE UN CLIENTE AL MISMO FORMATO QUE GUARDA LA
+	// CARPETA DE VENTAS (createVenta). La compra solo tiene { ventaId, fecha, total,
+	// productos: [{nombre, cantidad, total}] }, asi que el resto de campos de la venta
+	// se deducen de ahi y de los movimientos de deuda del mismo cliente.
+	_normalizarCompraAVenta(compra, cliente, productosPorNombre) {
+		let total = Number(compra.total || 0);
 
-		// Extrae y aplanar todas las compras de la lista de clientes
-		let ventas = converterArray(clientes).flatMap(cliente => cliente.compras || []);
+		// LO RECIBIDO SE DEDUCE DE LA DEUDA: los movimientos con el mismo ventaId y
+		// sign "-" son el monto que quedo fiado. Los separadores de deuda saldada
+		// (sign "S") se ignoran porque no apuntan a ninguna venta.
+		let fiado = converterArray(cliente.movements || [])
+			.filter(m => m && m.sign === "-" && String(m.ventaId) === String(compra.ventaId))
+			.reduce((sum, m) => sum + Number(m.monto || 0), 0);
+
+		// productsPorNombre existe porque en la compra solo quedo el nombre del producto:
+		// con ese indice se recuperan el id y el costo de compra de cada uno.
+		let products = converterArray(compra.productos || []).map(p => {
+			let cantidad = Number(p.cantidad || 0);
+			let precioFinal = Number(p.total || 0);
+			let findingProduct = productosPorNombre[String(p.nombre != null ? p.nombre : '').trim().toLowerCase()];
+
+			return {
+				id: findingProduct ? findingProduct.id : null,
+				precio_unitario: cantidad > 0 ? redondearMoneda(precioFinal / cantidad) : redondearMoneda(precioFinal),
+				cantidad: cantidad,
+				name: p.nombre,
+				costo_adquisitivo: findingProduct ? findingProduct.costo_adquisitivo : 0,
+				precio_final: redondearMoneda(precioFinal)
+			};
+		});
+
+		let venta = {
+			products: products,
+			productsNone: [],
+			recibido: redondearMoneda(Math.max(0, total - fiado)),
+			total_pago: redondearMoneda(total),
+			id: compra.ventaId,
+			date: compra.fecha,
+			ventaHechaPor: null,
+			mayor: null,
+			digital: null,
+			vueltas: 0,
+			clienteId: cliente.id,
+			cliente: cliente.name,
+			origen: "clientes"
+		};
+
+		if (fiado > 0.005) {
+			venta.fiado = true;
+			venta.deudorId = cliente.id;
+		}
+
+		return venta;
+	}
+
+	// VENTAS DE LA CAJA: lo que hay en la carpeta de ventas, tal cual. La usan la
+	// facturacion y la edicion de ventas, que necesitan la venta completa y ya
+	// existen en /data/simple/ventas.
+	getAllVentas(data) {
+		let validateUser = this.validatePerms(data, 'view');
+		if (!validateUser) return { message: "No tienes permisos suficientes para ver las ventas" };
+
+		let ventas = this.db.getData('/data/simple/ventas');
 
 		return { message: "Lista de todas las ventas", data: ventas };
+	}
+
+	// VENTAS DE LOS CLIENTES: todas las compras de todos los clientes, pero ya con el
+	// formato de la carpeta de ventas para que el reporte de Excel pueda usar los mismos
+	// campos (productos con id y precio unitario, recibido, total, cliente, fecha).
+	// A diferencia de la caja, estas compras no se borran al cerrar la caja.
+	// El data va indexado por id de venta.
+	getAllClientesVentas(data) {
+		let validateUser = this.validatePerms(data, 'view');
+		if (!validateUser) return { message: "No tienes permisos suficientes para ver las ventas" };
+
+		let clientes = this.db.getData('/data/simple/clientes');
+		let products = this.db.getData('/data/simple/products', ['log']);
+
+		// Indice por nombre en minusculas para no depender de como este escrito el
+		// producto en cada compra.
+		let productosPorNombre = {};
+		converterArray(products).forEach(producto => {
+			if (producto && producto.name != null) productosPorNombre[String(producto.name).trim().toLowerCase()] = producto;
+		});
+
+		let ventas = {};
+
+		converterArray(clientes).forEach(cliente => {
+			if (!cliente) return;
+
+			converterArray(cliente.compras || []).forEach(compra => {
+				if (!compra || compra.ventaId == null) return;
+
+				// La misma venta no puede repetirse si quedo registrada en dos fichas.
+				if (ventas[compra.ventaId]) return;
+
+				ventas[compra.ventaId] = this._normalizarCompraAVenta(compra, cliente, productosPorNombre);
+			});
+		});
+
+		return { message: "Lista de todas las ventas de los clientes", data: ventas };
 	}
 
 	// -------------------------------------------------------------------------------

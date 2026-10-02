@@ -1166,6 +1166,12 @@ router.post('/getAllVentas', (req, res) => {
   return res.json(database.getAllVentas(data));
 });
 
+// Ventas de todos los clientes en el mismo formato que la caja, para el reporte de Excel
+router.post('/getAllClientesVentas', (req, res) => {
+  const data = req.body.token;
+  return res.json(database.getAllClientesVentas(data));
+});
+
 router.post('/getProduct/:id', (req, res) => {
   const data = req.body.token;
   const id = req.params.id;
@@ -1405,16 +1411,6 @@ router.post('/getAllData', (req, res) => {
   all_data.roles = undefined;
   all_data.logs = undefined;
   return res.json({ message: "All Data", data: all_data });
-})
-
-router.post('/getAllVentas', (req, res) => {
-  const token = req.body.token;
-  if(!token) return res.json({message: "Agrega el token"});
-
-  if(!database.validatePerms(token, 'facturar')) return res.json({message: "Fallo de servidor"});
-  let allVentas = database.getData('/data/simple/ventas');
-
-  return res.json({message: "Ventas descargadas satisfactoriamente", data: allVentas});
 })
 
 router.post('/configServ', (req, res) => {
