@@ -1824,6 +1824,10 @@ class Database {
 			vueltas: 0,
 			clienteId: cliente.id,
 			cliente: cliente.name,
+			// La categoria y el proviene viajan con la venta para que el Excel pueda
+			// filtrar sin depender de que el cliente este cargado en el frontend.
+			categoria: cliente.categoria != null ? String(cliente.categoria).trim() : "",
+			proviene: cliente.proviene != null ? String(cliente.proviene).trim() : "",
 			origen: "clientes"
 		};
 

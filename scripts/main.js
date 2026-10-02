@@ -1589,6 +1589,33 @@ function normalizarTexto(texto) {
   return String(texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+// FECHA DE UNA VENTA EN MILISEGUNDOS, para el Excel de ventas y el panel de compras.
+// Acepta lo que venga en v.date, v.fecha, v.cerrada o v.created_at, en numero o en
+// texto. Antes cada pantalla lo parseaba por su cuenta y por eso el Excel y el panel
+// excluian ventas distintas con los mismos filtros: ahora las dos usan esta funcion.
+function fechaVentaMs(v) {
+  // Si se pasa un valor suelto (no un objeto venta) se interpreta como la fecha.
+  let raw = (v && typeof v === 'object' && !(v instanceof Date))
+    ? (v.date != null ? v.date : (v.fecha != null ? v.fecha : (v.cerrada != null ? v.cerrada : v.created_at)))
+    : v;
+
+  if (raw == null || raw === '') return 0;
+
+  if (typeof raw === 'number') return isNaN(raw) ? 0 : raw;
+
+  let texto = String(raw).trim();
+  if (texto === '') return 0;
+
+  // "1725148800000" venia como texto numerico
+  if (!isNaN(texto)) return Number(texto);
+
+  // "AAAA-MM-DD" o "AAAA-MM-DDTHH:mm:ss" no son parseables en Safari; el guion
+  // se cambia por barra para forzar el formato local
+  let normalizado = texto.includes('T') ? texto : texto.replace(/-/g, '/') + ' 00:00:00';
+  let d = new Date(normalizado).getTime();
+  return isNaN(d) ? 0 : d;
+}
+
 function activarBuscadorCliente(clientes, opts = {}) {
   let input = document.querySelector('#buscarCliente');
   let hiddenInput = document.querySelector('#clienteId');
@@ -3425,13 +3452,13 @@ function renderComprasCliente(info, filtro) {
   const ahora = new Date();
   const rango = filtro === 'rango' ? rangoComprasCliente() : null;
   const enPeriodo = (ts) => {
+    const t = fechaVentaMs({ date: ts });
     if (filtro === 'rango') {
       if (!rango) return true;
-      const t = Number(ts || 0);
       if (!t) return false;
       return t >= rango.desdeMs && t <= rango.hastaMs;
     }
-    const d = new Date(ts || 0);
+    const d = new Date(t || 0);
     if (filtro === '30d') return (ahora - d) <= 30 * 24 * 3600 * 1000;
     if (filtro === 'mes') return d.getFullYear() === ahora.getFullYear() && d.getMonth() === ahora.getMonth();
     if (filtro === 'mesAnterior') {
@@ -5874,6 +5901,18 @@ function exportarExcelVentasClientes() {
   });
 
   let clienteDeVenta = (v) => {
+    // El backend ya manda categoria/proviene en la venta (v.categoria / v.proviene).
+    // Se usan primero para no depender de que el cliente este cargado en el
+    // frontend: con 366 clientes la ficha no siempre esta en _clientesPagina y
+    // antes eso hacia que el filtro descartara la venta entera.
+    if (v && (v.categoria != null || v.proviene != null)) {
+      return {
+        id: v.clienteId,
+        name: v.cliente,
+        categoria: v.categoria != null ? String(v.categoria) : '',
+        proviene: v.proviene != null ? String(v.proviene) : ''
+      };
+    }
     let id = v.clienteId != null && v.clienteId !== '' ? v.clienteId : (v.deudorId != null ? v.deudorId : null);
     if (id != null && mapaClientesPorId[String(id)]) return mapaClientesPorId[String(id)];
     if (v.cliente) {
@@ -5881,6 +5920,22 @@ function exportarExcelVentasClientes() {
       if (mapaClientesPorNombre[nomKey]) return mapaClientesPorNombre[nomKey];
     }
     return null;
+  };
+
+  // VENTAS QUE EL FILTRO NO PUEDE CLASIFICAR: antes se descartaban en silencio
+  // cuando no habia categoria/proviene, y eso hacia que el total del Excel
+  // quedara por debajo del panel sin explicacion. Ahora se cuentan y se avisa.
+  let ventasSinClasificar = 0;
+
+  let coincideCategoria = (v, valor) => {
+    let dato = v.categoria != null ? String(v.categoria).trim() : '';
+    if (!dato) return null; // sin dato: no se puede affirmar ni negar
+    return dato === String(valor || '').trim();
+  };
+  let coincideProviene = (v, valor) => {
+    let dato = v.proviene != null ? String(v.proviene).trim() : '';
+    if (!dato) return null;
+    return dato === String(valor || '').trim();
   };
 
   let etiquetaFiltro = (fCat || fPro || fCond)
@@ -5903,43 +5958,36 @@ function exportarExcelVentasClientes() {
     console.log("Ventas recibidas del servidor:", rawVentas.length);
 
     let ventas = rawVentas.filter(v => {
-      // 1. EXTRAER FECHA EN MILISEGUNDOS DE CUALQUIER FORMATO
-      let rawDate = v.date || v.fecha || v.cerrada || v.created_at;
-      let d = 0;
-
-      if (typeof rawDate === 'number') {
-        d = rawDate;
-      } else if (typeof rawDate === 'string') {
-        let trimmed = rawDate.trim();
-        if (!isNaN(trimmed) && trimmed !== '') {
-          d = Number(trimmed); // Si venía como string de milisegundos "1725148800000"
-        } else {
-          d = new Date(trimmed.includes('T') ? trimmed : trimmed.replace(/-/g, '/') + ' 00:00:00').getTime();
-        }
-      }
+      // 1. FECHA (mismo helper que usa el panel de compras)
+      let d = fechaVentaMs(v);
 
       // Si sigue sin haber fecha, usar la fecha actual para no perder la venta en el reporte
-      if (!d || isNaN(d)) d = Date.now();
+      if (!d) d = Date.now();
 
       // 2. FILTRAR POR FECHA
       if (d < desdeMs || d > hastaMs) return false;
 
       // 3. FILTRAR POR CATEGORÍA / PROVIENE
+      // Sin dato en la venta no se descarta: se cuenta y se avisa al final, porque
+      // descartarla en silencio hacia que el total quedara por debajo del panel.
       if (fCat || fPro) {
-        let c = clienteDeVenta(v);
-        if (fCat && (!c || String(c.categoria || '').trim() !== fCat)) return false;
-        if (fPro && (!c || String(c.proviene || '').trim() !== fPro)) return false;
+        if (fCat) {
+          let okCat = coincideCategoria(v, fCat);
+          if (okCat === false) return false;
+          if (okCat === null) ventasSinClasificar++;
+        }
+        if (fPro) {
+          let okPro = coincideProviene(v, fPro);
+          if (okPro === false) return false;
+          if (okPro === null && !fCat) ventasSinClasificar++;
+        }
       }
 
       // 4. FILTRAR POR CONDICIÓN
       if (fCond && condicionVenta(v) !== fCond) return false;
 
       return true;
-    }).sort((a, b) => {
-      let dA = Number(a.date || a.fecha || 0);
-      let dB = Number(b.date || b.fecha || 0);
-      return dA - dB;
-    });
+    }).sort((a, b) => fechaVentaMs(a) - fechaVentaMs(b));
 
     console.log("Ventas filtradas a exportar:", ventas.length);
 
@@ -6213,6 +6261,16 @@ function exportarExcelVentasClientes() {
       a.download = nombreArchivo;
       a.click();
       setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+
+      // Las ventas sin categoria/proviene no se pueden filtrar, pero tampoco se
+      // deben perder: quedan en el Excel y se avisa cuantas fueron.
+      if (ventasSinClasificar > 0) {
+        Toast.fire({
+          title: "Excel Ventas",
+          text: `${ventasSinClasificar} venta(s) no tienen categoría/proviene y no se pudieron filtrar (están incluidas en el archivo).`,
+          icon: 'warning'
+        });
+      }
     });
   });
 }
