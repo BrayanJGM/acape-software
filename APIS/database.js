@@ -2,7 +2,7 @@
 const Admin = require('./realtime-db-json.js');
 const sha256 = require('crypto-js/sha256');
 const sha3 = require('crypto-js/sha3');
-const {converter, timems, getTime, getTimeLong, getRemainTime, forDate} = require('./timems-server.js');
+const { converter, timems, getTime, getTimeLong, getRemainTime, forDate } = require('./timems-server.js');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 
@@ -15,54 +15,54 @@ const carpetaFacturas = path.join(__dirname, './../uploads');
 const whatsapp = require('./whatsapp.services.js');
 
 function limpiarCantidad(cantidad) {
-  // Convierte a string por seguridad
-  cantidad = cantidad.toString();
-  // Si termina en '.00', quítalo
-  if (cantidad.endsWith('.00')) {
-    return cantidad.slice(0, -3);
-  }
-  return cantidad;
+	// Convierte a string por seguridad
+	cantidad = cantidad.toString();
+	// Si termina en '.00', quítalo
+	if (cantidad.endsWith('.00')) {
+		return cantidad.slice(0, -3);
+	}
+	return cantidad;
 }
 
 // GENERAR TOKENS PARA LOS PRODUCTOS, MERAMENTE PRODUCTOS
 
 function generarToken(numeroUsuario) {
-  // Convertir el número a string
-  const numeroString = numeroUsuario.toString();
+	// Convertir el número a string
+	const numeroString = numeroUsuario.toString();
 
-  // Combinar el número con una cadena aleatoria
-  const cadenaAleatoria = crypto.randomBytes(30).toString('hex'); // Genera 20 bytes aleatorios en hexadecimal
-  const cadenaCombinada = numeroString + cadenaAleatoria;
+	// Combinar el número con una cadena aleatoria
+	const cadenaAleatoria = crypto.randomBytes(30).toString('hex'); // Genera 20 bytes aleatorios en hexadecimal
+	const cadenaCombinada = numeroString + cadenaAleatoria;
 
-  // Generar un UUID usando la cadena combinada
-  const token = uuidv4(cadenaCombinada);
+	// Generar un UUID usando la cadena combinada
+	const token = uuidv4(cadenaCombinada);
 
-  // Devolver el token
-  return token;
+	// Devolver el token
+	return token;
 }
 
 function removeCommaSeparators(input) {
-  return input.replace(/,/g, '');
+	return input.replace(/,/g, '');
 }
 
 // REDONDEA UN MONTO A 2 DECIMALES PARA EVITAR ERRORES DE PUNTO FLOTANTE EN VENTAS POR PESO
 function redondearMoneda(numero) {
-  return Math.round(Number(numero) * 100) / 100;
+	return Math.round(Number(numero) * 100) / 100;
 }
 
 function formatNumber(number) {
-  // Limita a dos decimales
-  const formattedNumber = Number(number).toFixed(2);
+	// Limita a dos decimales
+	const formattedNumber = Number(number).toFixed(2);
 
-  // Aplica el formateo con comas
-  return formattedNumber.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+	// Aplica el formateo con comas
+	return formattedNumber.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 
 // CONVERTIR CUALQUIER OBJETO EN UN ARREGLO 
 
-function converterArray(object){
-	if(!object) return [];
+function converterArray(object) {
+	if (!object) return [];
 	let keys = Object.keys(object);
 	let arrayToReturn = [];
 	
@@ -74,24 +74,24 @@ function converterArray(object){
 }
 
 function sumByDate(array) {
-  // Ordenar el arreglo por fecha
-  array.sort((a, b) => new Date(a.date) - new Date(b.date));
+	// Ordenar el arreglo por fecha
+	array.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  // Objeto para almacenar los resultados
-  const result = {};
+	// Objeto para almacenar los resultados
+	const result = {};
 
-  // Recorrer el arreglo y sumar los valores por fecha
-  array.forEach(item => {
-    const date = new Date(item.date).toLocaleDateString();
-    if (result[date]) {
-      result[date].value += item.value;
-    } else {
-      result[date] = { date: new Date(date).toLocaleDateString(), value: item.value };
-    }
-  });
+	// Recorrer el arreglo y sumar los valores por fecha
+	array.forEach(item => {
+		const date = new Date(item.date).toLocaleDateString();
+		if (result[date]) {
+			result[date].value += item.value;
+		} else {
+			result[date] = { date: new Date(date).toLocaleDateString(), value: item.value };
+		}
+	});
 
-  // Convertir el objeto de resultados en un arreglo
-  return Object.values(result);
+	// Convertir el objeto de resultados en un arreglo
+	return Object.values(result);
 }
 
 
@@ -99,22 +99,22 @@ function sumByDate(array) {
 class Database {
 
 	// RECIBIR TODOS LOS DATOS DEL USUARIO
-	constructor(config = {}){
-		this.user = config.user?config.user:"admin";
-		this.password = config.password?config.password:"server";
-		this.route = config.route?config.route:"./system",
-		this.name = config.name;
+	constructor(config = {}) {
+		this.user = config.user ? config.user : "admin";
+		this.password = config.password ? config.password : "server";
+		this.route = config.route ? config.route : "./system",
+			this.name = config.name;
 		this.db = null;
 		this.data = null;
 		this.anteriorData = null;
 	}
 
 	// INICIALIZAR LA BASE DE DATOS Y GUARDAR TODAS LAS CATEGORIAS DE TRABAJO
-	start(){
+	start() {
 		this.db = new Admin(this.route);
 
 		// EN CASO DE QUE NO EXISTE ALGUNA DE ESTAS CATEGORIAS SE CREA, EN TANTO LA MAS IMPORTANTE ES LA DE USUARIOS Y DESPUES LA ID
-		if(!this.db.initData('/data/simple/id')) {
+		if (!this.db.initData('/data/simple/id')) {
 			this.db.setData('/data/simple/id', {
 				users: 0,
 				products: 0,
@@ -131,12 +131,12 @@ class Database {
 			})
 		};
 
-		if(!this.db.initData('/data/simple/accounting')){
-			this.db.setData('/data/simple/accounting', {value: 0})
+		if (!this.db.initData('/data/simple/accounting')) {
+			this.db.setData('/data/simple/accounting', { value: 0 })
 		};
 
 		// VALIDACIÓN DE ROLES
-		if(!this.db.initData('/data/simple/roles')){
+		if (!this.db.initData('/data/simple/roles')) {
 			this.db.setData('/data/simple/roles', {
 				owner: {
 					all: "true",
@@ -154,80 +154,80 @@ class Database {
 			})
 		}
 
-		return {message: "Servicio iniciado"};
+		return { message: "Servicio iniciado" };
 	}
 
 	// NO ES NECESARIO OPTIMIZAR
 	// NECESARIAS LAS FUNCIONES DE SERVICIO?
-	serviceSet(data, token){
+	serviceSet(data, token) {
 		let valid = this.validatePerms(token);
 
-		if(!valid) return {message: "No tienes permisos suficientes para ejecutar esta acción"};
+		if (!valid) return { message: "No tienes permisos suficientes para ejecutar esta acción" };
 
 		let services = this.db.getData('/data/simple/services');
 
-		services.time = data.time?data.time:services.time;
-		services.mail = data.mail?data.mail:services.mail;
+		services.time = data.time ? data.time : services.time;
+		services.mail = data.mail ? data.mail : services.mail;
 
 		this.db.setData('/data/simple/services', services);
 
-		return {message: "Información guardada satisfactoriamente.", data: services};
+		return { message: "Información guardada satisfactoriamente.", data: services };
 	}
 
-	servicesGet(token){
+	servicesGet(token) {
 		let valid = this.validatePerms(token);
 
-		if(!valid) return {message: "No tienes permisos suficientes para ejecutar esta acción"};
+		if (!valid) return { message: "No tienes permisos suficientes para ejecutar esta acción" };
 
 		let services = this.db.getData('/data/simple/services');
 
-		return {message: "Información Descargada Satisfactoriamente", data: services};
+		return { message: "Información Descargada Satisfactoriamente", data: services };
 	}
 
-	validatingUsering(user){
+	validatingUsering(user) {
 		let final_user = this.getUser(user.user, user.password);
-		if(!final_user.data) return {message: "Error, Este usuario es invalido la contraseña o el usuario"};
+		if (!final_user.data) return { message: "Error, Este usuario es invalido la contraseña o el usuario" };
 
 		let validatePerms = this.validatePerms(final_user.data.token, 'all');
-		if(!validatePerms) return {message: "No tienes permisos suficientes para manejar zopelapp."};
+		if (!validatePerms) return { message: "No tienes permisos suficientes para manejar zopelapp." };
 
-		return {message: "Correcto", data: final_user};
+		return { message: "Correcto", data: final_user };
 	}
 
-	validatingUseringToken(token){
+	validatingUseringToken(token) {
 		let final_user = this.getUserToken(token);
-		if(!final_user.data) return {message: "Error, Este usuario es invalido la contraseña o el usuario"};
+		if (!final_user.data) return { message: "Error, Este usuario es invalido la contraseña o el usuario" };
 
 		let validatePerms = this.validatePerms(final_user.data.token, 'all');
-		if(!validatePerms) return {message: "No tienes permisos suficientes para manejar zopelapp."};
+		if (!validatePerms) return { message: "No tienes permisos suficientes para manejar zopelapp." };
 
-		return {message: "Correcto", data: final_user};
+		return { message: "Correcto", data: final_user };
 	}
 
 	// ACTUALMENTE FUNCIONAN ------------
-	bodegaGetIndirectos(user){
+	bodegaGetIndirectos(user) {
 		let valid = this.getUserToken(user);
-		if(!valid.data) return valid;
+		if (!valid.data) return valid;
 
 		let indirectos = this.db.getData('/data/simple/zopelapp/indirectos');
 
-		return {message: "Información descargada correctamente.", data: indirectos};
+		return { message: "Información descargada correctamente.", data: indirectos };
 	}
 
 	// BODEGAINDIRECTOSCREATE OPTIMIZADA
-	bodegaIndirectosCreate(data = {}, user = {}){
+	bodegaIndirectosCreate(data = {}, user = {}) {
 		let valid = this.getUserToken(user);
-		if(!valid.data) return valid;
+		if (!valid.data) return valid;
 
 		let id = this.db.getData('/data/simple/id').indirectos;
-		if(!data.name) return {message: "Rellena todos los espacios. Agrega el nombre"};
-		if(!data.daycounter) return {message: "Rellena todos los espacios, Agrega los dias de gasto"};
-		if(!data.costo) return {message: "Rellena todos los espacios, Agrega el costo"};
-		if(!data.description) return {message: "Rellena todos los espacios, Agrega la descripción"};
+		if (!data.name) return { message: "Rellena todos los espacios. Agrega el nombre" };
+		if (!data.daycounter) return { message: "Rellena todos los espacios, Agrega los dias de gasto" };
+		if (!data.costo) return { message: "Rellena todos los espacios, Agrega el costo" };
+		if (!data.description) return { message: "Rellena todos los espacios, Agrega la descripción" };
 
-		let db_id = id?id:0;
+		let db_id = id ? id : 0;
 
-		db_id = db_id+1;
+		db_id = db_id + 1;
 
 		let finalIndirecto = {
 			name: data.name,
@@ -237,19 +237,19 @@ class Database {
 			description: data.description
 		}
 
-		this.db.setData('/data/simple/id', {indirectos: db_id});
+		this.db.setData('/data/simple/id', { indirectos: db_id });
 		this.db.setData(`/data/simple/zopelapp/indirectos/${db_id}`, finalIndirecto);
 
-		return {message: "Gasto indirecto nuevo agregado", data: finalIndirecto};
+		return { message: "Gasto indirecto nuevo agregado", data: finalIndirecto };
 	}
 
 	// OPTIMIZADA
-	bodegaIndirectosEdit(data, user){
+	bodegaIndirectosEdit(data, user) {
 		let valid = this.getUserToken(user);
-		if(!valid.data) return valid;
+		if (!valid.data) return valid;
 
 		let findingIndirecto = this.db.initData(`/data/simple/zopelapp/indirectos/${data.id}`);
-		if(!findingIndirecto) return {message: "Este gasto indirecto no existe"};
+		if (!findingIndirecto) return { message: "Este gasto indirecto no existe" };
 
 		findingIndirecto.name = data.name;
 		findingIndirecto.description = data.description;
@@ -258,46 +258,46 @@ class Database {
 
 		this.db.setData(`/data/simple/zopelapp/indirectos/${data.id}`, findingIndirecto);
 
-		return {message: "Cambios guardados exitosamente", data: findingIndirecto};
+		return { message: "Cambios guardados exitosamente", data: findingIndirecto };
 	}
 
 	// OPTIMIZADA
-	bodegaIndirectosDelete(id, user){
+	bodegaIndirectosDelete(id, user) {
 		let valid = this.getUserToken(user);
-		if(!valid.data) return valid;
+		if (!valid.data) return valid;
 
 		let indirectos = this.db.initData(`/data/simple/zopelapp/indirectos/${id}`);
-		if(!indirectos) return {message: "Este gasto indirecto no existe."};
+		if (!indirectos) return { message: "Este gasto indirecto no existe." };
 
 		this.db.removeData(`/data/simple/zopelapp/indirectos/${id}`);
 
-		return {message: "Información descargada correctamente", data: indirectos};
+		return { message: "Información descargada correctamente", data: indirectos };
 	}
 
 
 	// OPTIMIZADA
-	bodegaGetFormulas(user){
+	bodegaGetFormulas(user) {
 		let valid = this.getUserToken(user.user);
-		if(!valid.data) return valid;
+		if (!valid.data) return valid;
 
 		let formulas = this.db.getData('/data/simple/zopelapp/formulas');
 
-		return {message: "Información descargada satisfactoriamente", data: formulas};
+		return { message: "Información descargada satisfactoriamente", data: formulas };
 	}
 
 
 	// OPTIMIZADA
-	bodegaCreateFormula(data, user){
+	bodegaCreateFormula(data, user) {
 		let valid = this.getUserToken(user);
-		if(!valid.data) return valid;
+		if (!valid.data) return valid;
 
-		if(!data.name) return {message: "Agrega el nombre de la formula"};
-		if(!data.description) return {message: "Agrega la descripción de la formula"};
-		if(!data.products) return {message: "Agrega los productos a la formula"};
-		if(!data.products[0]) return {message: "Agrega los productos a la formula"};
+		if (!data.name) return { message: "Agrega el nombre de la formula" };
+		if (!data.description) return { message: "Agrega la descripción de la formula" };
+		if (!data.products) return { message: "Agrega los productos a la formula" };
+		if (!data.products[0]) return { message: "Agrega los productos a la formula" };
 
 		let id = this.db.getData('/data/simple/id').formulas;
-		let db_id = id?id:0;
+		let db_id = id ? id : 0;
 
 		db_id = db_id + 1;
 
@@ -309,84 +309,84 @@ class Database {
 			id: db_id
 		}
 
-		this.db.setData('/data/simple/id', {formulas: db_id});
+		this.db.setData('/data/simple/id', { formulas: db_id });
 
 		this.db.setData(`/data/simple/zopelapp/formulas/${db_id}`, final_formula);
 
-		return {message: "Formula Creada Satisfactoriamente", data: final_formula};
+		return { message: "Formula Creada Satisfactoriamente", data: final_formula };
 	}
 
 
 	// OPTIMIZADA
-	bodegaDeleteFormula(data, user){
+	bodegaDeleteFormula(data, user) {
 		let valid = this.getUserToken(user);
-		if(!valid.data) return valid;
+		if (!valid.data) return valid;
 
 		let findingformula = this.db.initData(`/data/simple/zopelapp/formulas/${data}`);
-		if(!findingformula) return {message: "Esta formula no existe o no se encuentra registrada"};
+		if (!findingformula) return { message: "Esta formula no existe o no se encuentra registrada" };
 
 		this.db.removeData(`/data/simple/zopelapp/formulas/${data}`);
 
-		return {message: "Formula Eliminada Satisfactoriamente", data: findingformula};
+		return { message: "Formula Eliminada Satisfactoriamente", data: findingformula };
 	}
 
 	// OPTIMIZADA
-	bodegaSaveRegister(data, user){
+	bodegaSaveRegister(data, user) {
 		let valid = this.getUserToken(user);
-		if(!valid.data) return valid;
+		if (!valid.data) return valid;
 
 		let id = this.db.getData('/data/simple/id').registrosBodega;
 
-		let db_id = id?id:0;
+		let db_id = id ? id : 0;
 
 		db_id = db_id + 1;
 		let findingRegistro = {
 			data: data,
 			id: db_id,
-			date: new Date()-0
+			date: new Date() - 0
 		};
 
 		this.db.setData(`/data/simple/zopelapp/registros/${db_id}`, findingRegistro);
-		this.db.setData('/data/simple/id', {registrosBodega: db_id});
+		this.db.setData('/data/simple/id', { registrosBodega: db_id });
 
-		return {message: "Registro Guardado satisfactoriamente", data: findingRegistro};
+		return { message: "Registro Guardado satisfactoriamente", data: findingRegistro };
 	}
 
 
 	// OPTIMIZADA
-	getRegistros(user){
+	getRegistros(user) {
 		let valid = this.getUserToken(user.user);
-		if(!valid.data) return valid;
+		if (!valid.data) return valid;
 
 		let registros = this.db.getData('/data/simple/zopelapp/registros');
 
-		return {message: "Registros Descargados", data: registros};
+		return { message: "Registros Descargados", data: registros };
 	}
 
 
 	// OPTIMIZADA
-	getRegistroByID(id, user){
+	getRegistroByID(id, user) {
 		let valid = this.getUserToken(user);
-		if(!valid.data) return valid;
+		if (!valid.data) return valid;
 
 		let registros = this.db.initData(`/data/simple/zopelapp/registros/${id}`);
-		if(!registros) return {message: "Registro no encontrado o ya eliminado, prueba actualizar la pagina"};
+		if (!registros) return { message: "Registro no encontrado o ya eliminado, prueba actualizar la pagina" };
 
-		return {message: "Registro descargado satisfactoriamente", data: registros};
+		return { message: "Registro descargado satisfactoriamente", data: registros };
 	}
 
 	// OPTIMIZADA
-	deleteRegistroByID(id, user){
+	deleteRegistroByID(id, user) {
 		let valid = this.getUserToken(user);
-		if(!valid.data) return valid;
+		if (!valid.data) return valid;
 
 		let registro = this.getRegistroByID(id, user);
 
-		if(!registro.data) return registro;
+		if (!registro.data) return registro;
 
 		this.db.removeData(`/data/simple/zopelapp/registros/${id}`);
 
-		return {message: "Registro eliminado satisfactoriamente", data: registro};
+		return { message: "Registro eliminado satisfactoriamente", data: registro };
 	}
 
 
@@ -395,42 +395,42 @@ class Database {
 
 
 	// PEDIDOS ?? FUNCIONALIDAD??
-	createPedido(pedido, token){
+	createPedido(pedido, token) {
 		let validateUser = this.validatePerms(token, 'facturar');
 		let getUser = this.getUserToken(token);
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
-		if(!pedido.cliente) return {message: "Pon la información del cliente"};
-		if(!pedido.phone_cliente) return {message: "Tienes que poner el telefono del cliente"};
-		if(!pedido.entrega) return {message: "Pon la fecha de entrega"};
-		if(!pedido.hora) return {message: "Pon la hora de entrega"};
-		if(!pedido.products[0]) return {message: "Por lo minimo se tiene que facturar un producto"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };
+		if (!pedido.cliente) return { message: "Pon la información del cliente" };
+		if (!pedido.phone_cliente) return { message: "Tienes que poner el telefono del cliente" };
+		if (!pedido.entrega) return { message: "Pon la fecha de entrega" };
+		if (!pedido.hora) return { message: "Pon la hora de entrega" };
+		if (!pedido.products[0]) return { message: "Por lo minimo se tiene que facturar un producto" };
 
 		let ids = this.db.getData('/data/simple/id');
-		ids.pedidos = ids.pedidos+1;
+		ids.pedidos = ids.pedidos + 1;
 		
 		pedido.id = ids.pedidos;
 
 		pedido.received = token;
 		let cotizando = this.cotizar(pedido.products, token, pedido.mayor);
-		if(!cotizando.data) cotizando;
+		if (!cotizando.data) cotizando;
 
 		pedido.cotizar = cotizando.data;
-		pedido.cancelado = pedido.abono == pedido.cotizar.total_pago?"true":"false";
+		pedido.cancelado = pedido.abono == pedido.cotizar.total_pago ? "true" : "false";
 		pedido.saldo = pedido.cotizar.total_pago - pedido.abono;
 		pedido.atendido = getUser.data.user;
 
 		this.db.setData(`/data/simple/pedidos/${pedido.id}`, pedido);
 		this.db.setData('/data/simple/id/pedidos', ids.pedidos);
 
-		return {message: "Pedido guardado exitosamente", data: pedido};
+		return { message: "Pedido guardado exitosamente", data: pedido };
 	}
 
-	setPayPedido(id, pago, token){
+	setPayPedido(id, pago, token) {
 		let validateUser = this.validatePerms(token, 'facturar');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };
 
 		let pedido = this.db.getData(`/data/simple/pedidos/${id}`);
-		if(!pedido) return {message: "Este pedido no existe o ya fue entregado"};
+		if (!pedido) return { message: "Este pedido no existe o ya fue entregado" };
 
 		pedido.abono = Number(pedido.abono) + Number(pago);
 		pedido.cancelado = JSON.stringify(Number(pedido.abono) >= Number(pedido.cotizar.total_pago));
@@ -438,31 +438,31 @@ class Database {
 
 		this.db.setData(`/data/simple/pedidos/${pedido.id}`, pedido);
 
-		return {message: "Pago de abono hecho", data: pedido, pago: pago};
+		return { message: "Pago de abono hecho", data: pedido, pago: pago };
 	}
 
-	deletePedido(id_pedido, token){
+	deletePedido(id_pedido, token) {
 		let validateUser = this.validatePerms(token, 'facturar');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };
 
 		let pedido = this.db.getData(`/data/simple/pedidos/${id_pedido}`);
-		if(!pedido) return {message: "Este pedido no existe o ya fue entregado"};
+		if (!pedido) return { message: "Este pedido no existe o ya fue entregado" };
 
 		this.db.removeData(`/data/simple/pedidos/${id_pedido}`);
 
-		return {message: "Pedido eliminado satisfactoriamente", data: pedido};
+		return { message: "Pedido eliminado satisfactoriamente", data: pedido };
 	}
 
-	finalizarPedido(id_pedido, token){
+	finalizarPedido(id_pedido, token) {
 		let pedido = this.deletePedido(id_pedido, token);
-		if(!pedido.data) return pedido;
+		if (!pedido.data) return pedido;
 
 		this.db.setData(`/data/simple/pedidos_finalizados/${pedido.id}`, pedido);
 
-		return {message: "Pedido finalizado de forma correcta", data: pedido.data};
+		return { message: "Pedido finalizado de forma correcta", data: pedido.data };
 	}
 
-	getPedidos(){
+	getPedidos() {
 		let data = this.db.getData('/data/simple/pedidos');
 
 		return data;
@@ -477,71 +477,71 @@ class Database {
 	// --------------------------------------------------------------------------------------------
 
 	// OPTIMIZADA
-	createMethodPay(method, token){
+	createMethodPay(method, token) {
 		let validateUser = this.validatePerms(token, 'all');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };
 
 		let findingMethod = this.db.initData(`/data/simple/methods/${method.name}`);
 
 		let methods_type = ['credito', 'digital', 'efectivo', 'cartera'];
 		let finding_type = methods_type.find(ch => ch == method.type);
-		if(!finding_type) return {message: `El tipo de pago ${method.type} no existe. Los metodos de pago disponibles son: ${methods_type.map(ch => ch)}`};
-		if(findingMethod) return {message: "Este metodo de pago ya existe"};
+		if (!finding_type) return { message: `El tipo de pago ${method.type} no existe. Los metodos de pago disponibles son: ${methods_type.map(ch => ch)}` };
+		if (findingMethod) return { message: "Este metodo de pago ya existe" };
 
 		method.value = 0;
 		let finalMethod = method;
 
 		this.db.setData(`/data/simple/methods/${method.name}`, finalMethod);
 
-		return {message: "Metodo de pago guardado exitosamente", data: finalMethod};
+		return { message: "Metodo de pago guardado exitosamente", data: finalMethod };
 	}
 
 	// optimizada
-	editMethodPay(method, token){
+	editMethodPay(method, token) {
 		let validateUser = this.validatePerms(token, 'all');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };
 
 		// let methods = this.db.getData('/data/simple/methods');
 		let findingMethod = this.db.initData(`/data/simple/methods/${methods.name}`);
 
 		let methods_type = ['credito', 'digital', 'efectivo'];
 		let finding_type = methods_type.find(ch => ch == method.type);
-		if(!finding_type) return {message: `El tipo de pago ${method.type} no existe. Los metodos de pago disponibles son: ${methods_type.map(ch => ch)}`};
-		if(!findingMethod) return {message: "Este metodo de pago no existe o no se encuentra registrado."};
+		if (!finding_type) return { message: `El tipo de pago ${method.type} no existe. Los metodos de pago disponibles son: ${methods_type.map(ch => ch)}` };
+		if (!findingMethod) return { message: "Este metodo de pago no existe o no se encuentra registrado." };
 
-		method.desc = method.desc?method.desc:`Metodo de pago tipo: ${method.type}`
+		method.desc = method.desc ? method.desc : `Metodo de pago tipo: ${method.type}`
 		let finalMethod = method;
 
 		this.db.setData(`/data/simple/methods/${method.name}`, finalMethod);
 
-		return {message: "Cambios guardados exitosamente", data: method}
+		return { message: "Cambios guardados exitosamente", data: method }
 	}
 
 	// optimizada
-	deleteMethodPay(method, token){
+	deleteMethodPay(method, token) {
 		let validateUser = this.validatePerms(token, 'all');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };
 
 		// let methods = this.db.getData('/data/simple/methods');
 		let findingMethod = this.db.initData(`/data/simple/methods/${method.name}`);
 
-		if(!findingMethod) return {message: "Este metodo de pago no existe o no fue eliminado."};
+		if (!findingMethod) return { message: "Este metodo de pago no existe o no fue eliminado." };
 
 		this.db.removeData(`/data/simple/methods/${findingMethod.name}`);
 
-		return {message: "Metodo de pago eliminado", data: findingMethod};
+		return { message: "Metodo de pago eliminado", data: findingMethod };
 	}
 
 	// optimizada
-	method(name){
+	method(name) {
 		let method_1 = this.db.initData(`/data/simple/methods/${name}`);
-		if(!method_1) return {message: "Este metodo de pago no existe"};
+		if (!method_1) return { message: "Este metodo de pago no existe" };
 
-		return {message: "Metodo de pago encontrado", data: method_1};
+		return { message: "Metodo de pago encontrado", data: method_1 };
 	}
 
 	// optimizada
-	getMethods(){
+	getMethods() {
 		return this.db.getData('/data/simple/methods');
 	}
 
@@ -554,29 +554,29 @@ class Database {
 
 
 	// OPTIMIZADA
-	addToGeneral(value){
+	addToGeneral(value) {
 		let accounting = this.db.getData('/data/simple/accounting', ['movements']);
 
 		let finalMovement = {
-			type: value.digital?`${value.digital}: ${value.desc?value.desc:"Sin Descripción"}`:`Global: ${value.desc?value.desc:"Sin Descripción"}`,
+			type: value.digital ? `${value.digital}: ${value.desc ? value.desc : "Sin Descripción"}` : `Global: ${value.desc ? value.desc : "Sin Descripción"}`,
 			sign: "+",
 			money: +value.monto,
 			date: new Date().toString(),
 			id: generarToken(new Date().toString()),
 			digital: value.digital,
-			dateID: new Date()-0
+			dateID: new Date() - 0
 		};
 
-		if(!value.digital){
+		if (!value.digital) {
 			accounting.value = accounting.value + Number(value.monto);
-		}else {
+		} else {
 			let findingMethod = this.method(value.digital);
 
-			if(!findingMethod.data) return {message: "Esta cartera no fue encontrada."};
+			if (!findingMethod.data) return { message: "Esta cartera no fue encontrada." };
 
 			findingMethod.data.value = findingMethod.data.value + Number(value.monto);
 
-			this.db.setData(`/data/simple/methods/${findingMethod.data.name}`, {value: findingMethod.data.value});
+			this.db.setData(`/data/simple/methods/${findingMethod.data.name}`, { value: findingMethod.data.value });
 		}
 
 		this.db.setData('/data/simple/accounting', accounting);
@@ -584,7 +584,7 @@ class Database {
 		// AHORA QUE HAGO PARA HACER PUSH DE MOVIMIENTOS
 		this.db.setData(`/data/simple/accounting/movements/${finalMovement.id}`, finalMovement)
 
-		return {message: "Movimiento guardado exitosamente", data: finalMovement};
+		return { message: "Movimiento guardado exitosamente", data: finalMovement };
 	}
 
 	// OPTIMIZADA
@@ -623,51 +623,51 @@ class Database {
 	}
 
 	// OPTIMIZADA
-	transferirGeneral(from, to, monto){
-		if(from == to) return {message: "Parece que estas intentando transferir a la misma cuenta."};
+	transferirGeneral(from, to, monto) {
+		if (from == to) return { message: "Parece que estas intentando transferir a la misma cuenta." };
 
 		let validatingFrom = from == "efectivo" ? true : (this.method(from).data);
 		let validatingTo = from == "efectivo" ? true : (this.method(from).data);
 
-		if(!validatingFrom) return {message: "La cartera de envio no se encuentra disponible"};
-		if(!validatingTo) return {message: "La cartera de recepción no se encuentra disponible"};
+		if (!validatingFrom) return { message: "La cartera de envio no se encuentra disponible" };
+		if (!validatingTo) return { message: "La cartera de recepción no se encuentra disponible" };
 
 		this.removeToGeneral({
-			digital: from=="efectivo"?null:from,
+			digital: from == "efectivo" ? null : from,
 			desc: `Transferencia a ${to}`,
-			monto: Number(monto?monto:0)
+			monto: Number(monto ? monto : 0)
 		});
 
 		this.addToGeneral({
-			digital: to=="efectivo"?null:to,
+			digital: to == "efectivo" ? null : to,
 			desc: `Transferencia Recibida De ${from}`,
-			monto: Number(monto?monto:0)
+			monto: Number(monto ? monto : 0)
 		})
 
-		return {message: "Transferencia terminada", data: {from, to, monto}};
+		return { message: "Transferencia terminada", data: { from, to, monto } };
 	}
 
 	// OPTIMIZADA
-	getDeudores(token){
+	getDeudores(token) {
 		return this.getClientesConDeuda(token);
 	}
 
 	// AÑADIR DEUDA A UN CLIENTE: incrementa la deuda y registra el movimiento
-	addDeuda(id, deuda = {}, token){
-		if(!id) return {message: "Tienes que poner el id del cliente"};
-		if(!deuda.monto) return {message: "Tienes que poner el valor de la deuda"};
-		if(!deuda.desc) return {message: "Tienes que poner la descripcion de la deuda"};
+	addDeuda(id, deuda = {}, token) {
+		if (!id) return { message: "Tienes que poner el id del cliente" };
+		if (!deuda.monto) return { message: "Tienes que poner el valor de la deuda" };
+		if (!deuda.desc) return { message: "Tienes que poner la descripcion de la deuda" };
 		
 		let validateUser = this.validatePerms(token, 'facturar');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};		
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };		
 
 		let finding_client = this.db.getData('/data/simple/clientes/' + id);
-		if(!finding_client) return {message: "Este cliente no existe"};
+		if (!finding_client) return { message: "Este cliente no existe" };
 
 		finding_client.deuda = Number(finding_client.deuda ? finding_client.deuda : 0) + Number(deuda.monto);
-		if(!finding_client.cuenta_abierta) finding_client.cuenta_abierta = new Date();
+		if (!finding_client.cuenta_abierta) finding_client.cuenta_abierta = new Date();
 
-		let settings_data = converterArray(finding_client.movements?finding_client.movements:{});
+		let settings_data = converterArray(finding_client.movements ? finding_client.movements : {});
 		deuda.date = new Date().toString();
 		deuda.sign = "-";
 		settings_data.push(deuda);
@@ -676,52 +676,52 @@ class Database {
 
 		this.db.setData('/data/simple/clientes/' + id, finding_client);
 
-		return {message: "Deuda añadida exitosamente.", data: finding_client, movement: deuda};
+		return { message: "Deuda añadida exitosamente.", data: finding_client, movement: deuda };
 	}
 
 	// PAGAR DEUDA DE UN CLIENTE: disminuye la deuda y registra el movimiento
-	removeDeuda(id, deuda = {}, token){
-		if(!id) return {message: "Tienes que poner el id del cliente"};
-		if(!deuda.monto) return {message: "Tienes que poner el valor de la deuda"};
-		if(!deuda.desc) return {message: "Tienes que poner la descripcion de la deuda"};
+	removeDeuda(id, deuda = {}, token) {
+		if (!id) return { message: "Tienes que poner el id del cliente" };
+		if (!deuda.monto) return { message: "Tienes que poner el valor de la deuda" };
+		if (!deuda.desc) return { message: "Tienes que poner la descripcion de la deuda" };
 		
 		let validateUser = this.validatePerms(token, 'facturar');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};		
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };		
 
 		let finding_client = this.db.getData('/data/simple/clientes/' + id);
-		if(!finding_client) return {message: "Este cliente no existe"};
+		if (!finding_client) return { message: "Este cliente no existe" };
 
 		let deudaActual = Number(finding_client.deuda ? finding_client.deuda : 0);
 		let nuevoValor = deudaActual - Number(deuda.monto);
-		if(nuevoValor < 0) nuevoValor = 0;
+		if (nuevoValor < 0) nuevoValor = 0;
 
 		finding_client.deuda = nuevoValor;
 		deuda.sign = "+"
 
-		let settings_data = converterArray(finding_client.movements?finding_client.movements:{});
+		let settings_data = converterArray(finding_client.movements ? finding_client.movements : {});
 		settings_data.push(deuda);
 
 		finding_client.movements = settings_data;
 
 		this.db.setData('/data/simple/clientes/' + id, finding_client);
 
-		return {message: "Deuda removida exitosamente.", data: finding_client, movement: deuda};
+		return { message: "Deuda removida exitosamente.", data: finding_client, movement: deuda };
 	}
 
 	// SALDAR DEUDA POR COMPLETO: pone la deuda en cero y deja un separador
 	// en el historial (movimiento sign: 'S') para distinguir las compras
 	// anteriores de las que vengan despues.
-	saldarDeuda(id, token){
-		if(!id) return {message: "Tienes que poner el id del cliente"};
+	saldarDeuda(id, token) {
+		if (!id) return { message: "Tienes que poner el id del cliente" };
 
 		let validateUser = this.validatePerms(token, 'facturar');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };
 
 		let finding_client = this.db.getData('/data/simple/clientes/' + id);
-		if(!finding_client) return {message: "Este cliente no existe"};
+		if (!finding_client) return { message: "Este cliente no existe" };
 
 		let deudaAnterior = Number(finding_client.deuda ? finding_client.deuda : 0);
-		if(deudaAnterior <= 0) return {message: "Este cliente no tiene deuda pendiente."};
+		if (deudaAnterior <= 0) return { message: "Este cliente no tiene deuda pendiente." };
 
 		finding_client.deuda = 0;
 		finding_client.cuenta_abierta = null;
@@ -730,7 +730,7 @@ class Database {
 		const rutaCuenta = path.join(this.db.route, `data/simple/clientes/${id}/cuenta_abierta.fdb`);
 		if (fs.existsSync(rutaCuenta)) fs.rmSync(rutaCuenta, { force: true });
 
-		let settings_data = converterArray(finding_client.movements?finding_client.movements:{});
+		let settings_data = converterArray(finding_client.movements ? finding_client.movements : {});
 		let separador = {
 			monto: deudaAnterior,
 			sign: "S",
@@ -744,7 +744,7 @@ class Database {
 
 		this.db.setData('/data/simple/clientes/' + id, finding_client);
 
-		return {message: "Deuda saldada exitosamente.", data: finding_client, movement: separador};
+		return { message: "Deuda saldada exitosamente.", data: finding_client, movement: separador };
 	}
 
 	// ----------------------------------------------------------------------------
@@ -752,78 +752,78 @@ class Database {
 	// ----------------------------------------------------------------------------
 
 	// OPTIMIZADA
-	createPagoFijo(data, user){
+	createPagoFijo(data, user) {
 		let valid = this.validatePerms(user);
-		if(!valid) return {message: "No tienes permisos suficientes para generar un pago fijo"};
+		if (!valid) return { message: "No tienes permisos suficientes para generar un pago fijo" };
 
 		const ids = this.db.getData('/data/simple/id').pagosFijos;
 
-		let db_id = ids?ids:0;
+		let db_id = ids ? ids : 0;
 		db_id = db_id + 1;
 
 		let finalFijo = {
-			name: data.name?data.name:"Factura Por Pagar",
-			fijo: !data.fijo?"true":"false",
-			monto: !data.fijo?(data.monto?removeCommaSeparators(data.monto):0):null,
-			empieza: data.empieza?new Date(data.empieza)-0:new Date()-0,
+			name: data.name ? data.name : "Factura Por Pagar",
+			fijo: !data.fijo ? "true" : "false",
+			monto: !data.fijo ? (data.monto ? removeCommaSeparators(data.monto) : 0) : null,
+			empieza: data.empieza ? new Date(data.empieza) - 0 : new Date() - 0,
 			days: data.days,
 			id: db_id
 		};
 
 		this.db.setData(`/data/simple/pagos-fijos/${db_id}`, finalFijo);
-		this.db.setData('/data/simple/id', {pagosFijos: db_id});
+		this.db.setData('/data/simple/id', { pagosFijos: db_id });
 
-		return {message: "Pago Fijo Creado.", data: finalFijo};
+		return { message: "Pago Fijo Creado.", data: finalFijo };
 	}
 
 	// OPTIMIZADA
-	editPagoFijo(data, user){
+	editPagoFijo(data, user) {
 		let valid = this.validatePerms(user);
 
-		if(!valid) return {message: "No tienes permisos suficientes para generar un pago fijo"};
+		if (!valid) return { message: "No tienes permisos suficientes para generar un pago fijo" };
 
-		if(!data.id) return {message: "Tienes que poner el id del pago fijo."};
+		if (!data.id) return { message: "Tienes que poner el id del pago fijo." };
 
 		let getting = this.db.initData(`/data/simple/pagos-fijos/${data.id}`);
 
-		if(!getting) return {message: "No se pudo encontrar este pago fijo"};
+		if (!getting) return { message: "No se pudo encontrar este pago fijo" };
 
-		getting.fijo = !data.fijo?"true":"false";
-		getting.name = data.name?data.name:"Factura Por Pagar";
-		getting.monto = !data.fijo?(data.monto?data.monto:0):null;
-		getting.empieza = data.empieza?new Date(data.empieza)-0:new Date()-0;
+		getting.fijo = !data.fijo ? "true" : "false";
+		getting.name = data.name ? data.name : "Factura Por Pagar";
+		getting.monto = !data.fijo ? (data.monto ? data.monto : 0) : null;
+		getting.empieza = data.empieza ? new Date(data.empieza) - 0 : new Date() - 0;
 		getting.days = data.days;
 
 		this.db.setData(`/data/simple/pagos-fijos/${data.id}`, getting);
 
-		return {message: "Pago fijo editado exitosamente", data: getting};
+		return { message: "Pago fijo editado exitosamente", data: getting };
 	}
 
 	// OPTIMIZADA
-	deletePagoFijo(id, user){
+	deletePagoFijo(id, user) {
 		let valid = this.validatePerms(user);
-		if(!valid) return {message: "Este usuario no tiene permisos para lograr esto"};
+		if (!valid) return { message: "Este usuario no tiene permisos para lograr esto" };
 
-		if(!id) return {message: "Agrega el id del pago"};
+		if (!id) return { message: "Agrega el id del pago" };
 
 		let finding = this.db.initData(`/data/simple/pagos-fijos/${id}`);
 
-		if(!finding) return {message: "Este pago fijo no existe."};
+		if (!finding) return { message: "Este pago fijo no existe." };
 
 		this.db.removeData(`/data/simple/pagos-fijos/${id}`);
 
-		return {message: "Datos removidos satisfactoriamente", data: finding};
+		return { message: "Datos removidos satisfactoriamente", data: finding };
 	}
 
 	// OPTIMIZAD
-	setPagoFijo(data, user = {}){
+	setPagoFijo(data, user = {}) {
 		let valid = this.validatePerms(user);
 
-		if(!valid) return {message: "No tienes permisos para ejecutar esta acción"};
+		if (!valid) return { message: "No tienes permisos para ejecutar esta acción" };
 
 		let getPay = this.db.initData(`/data/simple/pagos-fijos/${data.id}`);
 
-		if(!getPay) return {message: "Este pago fijo no existe."};
+		if (!getPay) return { message: "Este pago fijo no existe." };
 
 		let ultimatePago = new Date(getPay.empieza) + timems(`${getPay.days}d`);
 		getPay.empieza = ultimatePago;
@@ -832,41 +832,41 @@ class Database {
 
 		this.removeToGeneral({
 			desc: `Pagos Fijos: ${getPay.name}`,
-			monto: Number(getPay.monto?getPay.monto:(data.monto?removeCommaSeparators(data.monto):0))
+			monto: Number(getPay.monto ? getPay.monto : (data.monto ? removeCommaSeparators(data.monto) : 0))
 		})
 
-		return {message: "Pago fijo hecho de la cartera global", data: getPay};
+		return { message: "Pago fijo hecho de la cartera global", data: getPay };
 	}
 
 	// REGISTRO DE CAJA ?? ESTO ES PELIGROSO Y DEJARA DE USARLO PORQUE TIENE MUCHOS FALLO Y NO CALCULA NO DA INFORMAS Y SOLO GENERA CIERRES.
 
 
 	// OPTIMIZADA
-	async registrarCaja(newCaja, token){
-		if(!newCaja) return {message: "Agrega la información de la caja."};
-		if(!token) return {message: "Agrega el usuario que hace el movimiento y cierre de la caja."};
+	async registrarCaja(newCaja, token) {
+		if (!newCaja) return { message: "Agrega la información de la caja." };
+		if (!token) return { message: "Agrega el usuario que hace el movimiento y cierre de la caja." };
 
 		let validateUser = this.validatePerms(token, 'facturar');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };
 
 		let finalUser = this.getUserToken(token);
 
 		let ids = this.db.getData('/data/simple/id');
 		// let caja = this.db.getData('/data/simple/caja');
-		if(!newCaja.date) return {message: "La fecha de la caja no existe, agrega una para poder registrarla"};
+		if (!newCaja.date) return { message: "La fecha de la caja no existe, agrega una para poder registrarla" };
 
-		newCaja.date = newCaja.date?newCaja.date:new Date()-0;
+		newCaja.date = newCaja.date ? newCaja.date : new Date() - 0;
 		newCaja.cerrada = new Date().toString();
-		newCaja.timeLapse = getTimeLong((new Date()-0) - new Date(newCaja.date));
+		newCaja.timeLapse = getTimeLong((new Date() - 0) - new Date(newCaja.date));
 		newCaja.closedBy = token;
 		newCaja.closedByName = finalUser.data.user;
 
-		ids['caja'] = (ids['caja']?ids['caja']:0) + 1;
+		ids['caja'] = (ids['caja'] ? ids['caja'] : 0) + 1;
 
-		newCaja.id = newCaja.id?newCaja.id:ids.caja;
+		newCaja.id = newCaja.id ? newCaja.id : ids.caja;
 
 		this.addToGeneral({
-			desc: `CAJAS: Cierre #${newCaja.id} - ${newCaja.responsableRegistered?responsableRegistered:newCaja.closedByName}`,
+			desc: `CAJAS: Cierre #${newCaja.id} - ${newCaja.responsableRegistered ? responsableRegistered : newCaja.closedByName}`,
 			sign: "+",
 			monto: +(newCaja.value - newCaja.starting)
 		});
@@ -877,26 +877,26 @@ class Database {
 
 		// HERESTAY
 		await whatsapp(
-		  `🧾 *CIERRE DE CAJA*\n\n` +
-		  `👤 *Responsable:* ${newCaja.responsableRegistered?responsableRegistered:newCaja.closedByName}\n` +
-		  `📅 *Fecha:* ${new Date(newCaja.cerrada).toLocaleString()}\n` +
-		  `🕒 *Duración de la caja:* ${newCaja.timeLapse}\n` +
-		  `🆔 *Caja N°:* ${newCaja.id}\n\n` +
+			`🧾 *CIERRE DE CAJA*\n\n` +
+			`👤 *Responsable:* ${newCaja.responsableRegistered ? responsableRegistered : newCaja.closedByName}\n` +
+			`📅 *Fecha:* ${new Date(newCaja.cerrada).toLocaleString()}\n` +
+			`🕒 *Duración de la caja:* ${newCaja.timeLapse}\n` +
+			`🆔 *Caja N°:* ${newCaja.id}\n\n` +
 		  
-		  `📊 *Resumen del día:*\n` +
-		  `• Total en ventas: ${formatNumber(newCaja.total_recibido)}\n` +
-		  `• Ventas digitales: ${formatNumber(newCaja.value_digital || 0)}\n` +
-		  `• Ingresos: ${formatNumber(newCaja.ingreso || 0)}\n` +
-		  `• Egresos: ${formatNumber(newCaja.egreso || 0)}\n` +
-		  `• Gastos netos: ${formatNumber(newCaja.egreso - newCaja.ingreso)}\n` +
-		  `• Balance final: ${formatNumber(newCaja.value)}\n` +
-		  `• Entregan: ${formatNumber(newCaja.value - newCaja.starting)}\n`
+			`📊 *Resumen del día:*\n` +
+			`• Total en ventas: ${formatNumber(newCaja.total_recibido)}\n` +
+			`• Ventas digitales: ${formatNumber(newCaja.value_digital || 0)}\n` +
+			`• Ingresos: ${formatNumber(newCaja.ingreso || 0)}\n` +
+			`• Egresos: ${formatNumber(newCaja.egreso || 0)}\n` +
+			`• Gastos netos: ${formatNumber(newCaja.egreso - newCaja.ingreso)}\n` +
+			`• Balance final: ${formatNumber(newCaja.value)}\n` +
+			`• Entregan: ${formatNumber(newCaja.value - newCaja.starting)}\n`
 		);
 
 		console.log(newCaja)
 
 
-		return {message: "Caja guardada", data: newCaja};
+		return { message: "Caja guardada", data: newCaja };
 	}
 
 
@@ -906,19 +906,19 @@ class Database {
 	// --------------------------------------------------------------------
 	// -> POR ACTUALIZAR >>
 	// --------------------------------------------------------------------
-	createUser(user, password, role){
+	createUser(user, password, role) {
 		let users_fin = this.db.getData('/data/simple/users', ['logs']);
 		let ids = this.db.getData('/data/simple/id');
 
 		let users = converterArray(users_fin);
 		let searching = users.find(ch => ch.user == user);
 
-		if(!searching){
+		if (!searching) {
 			ids.users += 1;
 			let nuevoUsuario = {
 				user: user,
 				password: password,
-				role: role?role:"user",
+				role: role ? role : "user",
 				id: ids.users,
 				token: sha256(`${user}+${new Date()}`).toString(),
 				sha256: sha256(user).toString()
@@ -929,58 +929,58 @@ class Database {
 			this.db.setData(`/data/simple/users/${nuevoUsuario.id}`, nuevoUsuario);
 			this.db.setData('/data/simple/id', ids);
 
-			return {message: "Usuario creado satisfactoriamente.", data: nuevoUsuario};
-		}else {
-			return {message: "Este nombre de usuario ya se encuentro usado.", type: "error"};
+			return { message: "Usuario creado satisfactoriamente.", data: nuevoUsuario };
+		} else {
+			return { message: "Este nombre de usuario ya se encuentro usado.", type: "error" };
 		}
 	}
 
 	// ELIMINAR UN USUARIO POR EL TOKEN
-	deleteUser(token){
+	deleteUser(token) {
 		let userFinding = this.getUserToken(token);
-		if(!userFinding.data) return userFinding;
+		if (!userFinding.data) return userFinding;
 		this.db.removeData(`/data/simple/users/${userFinding.data.id}`);
-		return {message: "Usuario eliminado satisfactoriamente", data: userFinding.data};
+		return { message: "Usuario eliminado satisfactoriamente", data: userFinding.data };
 	}
 
 	// EDITAR USUARIO
 
-	editUser(id, data){
+	editUser(id, data) {
 		let userFinding = this.db.initData(`/data/simple/users/${id}`);
-		if(!userFinding) return userFinding;
+		if (!userFinding) return userFinding;
 
 		userFinding.user = data.user;
 		userFinding.password = data.password;
 		userFinding.role = data.role;
 
 		this.db.setData(`/data/simple/users/${userFinding.id}`, userFinding);
-		return {message: "Usuario editado satisfactoriamente", data: userFinding};
+		return { message: "Usuario editado satisfactoriamente", data: userFinding };
 	}
 	// OBTENER LA INFO DE UN USUARIO CON EL USUARIO Y LA CONTRASEÑA, ES MAS QUE TODO PARA EL LOGIN DE LA INTERFAZ
-	getUser(user, password){
+	getUser(user, password) {
 		let data = this.db.getData('/data/simple/users', ['logs']);
 
 		let users = converterArray(data);
 		let searching = users.find(ch => ch.user == user);
-		if(!searching) return {message: "Este nombre no de usuario no existe.", type: "error"};
+		if (!searching) return { message: "Este nombre no de usuario no existe.", type: "error" };
 
-		if(searching.password != password) return {message: "La contraseña es incorrecta.", type: "error"};
+		if (searching.password != password) return { message: "La contraseña es incorrecta.", type: "error" };
 
 		searching = this.db.initData('/data/simple/users/' + searching.id) || searching;
 
-		return {message: "Usuario iniciado.", data: searching};
+		return { message: "Usuario iniciado.", data: searching };
 	}
 
 	// INICIAR A TRAVEZ DEL TOKEN
-	getUserToken(token){
+	getUserToken(token) {
 		let data = this.db.getData('/data/simple/users', ['logs']);
 		let users = converterArray(data);
 		let searching = users.find(ch => ch.token == token);
-		if(!searching) return {message: "El token es invalido"};
+		if (!searching) return { message: "El token es invalido" };
 
 		searching = this.db.initData('/data/simple/users/' + searching.id) || searching;
 
-		return {message: "Token iniciado", data: searching};
+		return { message: "Token iniciado", data: searching };
 	}
 
 	// --------------------------------------------------------------------
@@ -996,339 +996,339 @@ class Database {
 	// --------------------------------------------------------------------
 	// OPTIMIZADA
 	createProduct(data, token) {
-	  let data_db = this.db.getData('/data/simple/products', ['log']);
-	  let ids = this.db.getData('/data/simple/id');
+		let data_db = this.db.getData('/data/simple/products', ['log']);
+		let ids = this.db.getData('/data/simple/id');
 
-	  ids.products = ids.products + 1;
+		ids.products = ids.products + 1;
 
-	  if (!data.name) return { message: "Agrega un nombre del producto" };
+		if (!data.name) return { message: "Agrega un nombre del producto" };
 
-	  let validateUser = this.validatePerms(token, 'productManager');
-	  if (!validateUser) return { message: "El usuario no tiene permisos para crear un producto" };
+		let validateUser = this.validatePerms(token, 'productManager');
+		if (!validateUser) return { message: "El usuario no tiene permisos para crear un producto" };
 
-	  let products_array = converterArray(data_db);
-	  let findingProduct = products_array.find(ch => ch.name === data.name);
-	  if (findingProduct) return { message: "Ya hay un producto con el mismo nombre guardado." };
+		let products_array = converterArray(data_db);
+		let findingProduct = products_array.find(ch => ch.name === data.name);
+		if (findingProduct) return { message: "Ya hay un producto con el mismo nombre guardado." };
 
-	  let final_data = {
-	    name: data.name,
-	    price: data.price,
-	    price_mayor: data.price_mayor,
-	    iva: data.iva ? data.iva : "0",
-	    stock: data.stock ? data.stock : Infinity,
-	    costo_adquisitivo: data.costo_adquisitivo ? data.costo_adquisitivo : 0,
-	    id_personalizado: data.id_personalizado,
-	    nanoid: generarToken(new Date()),
-	    fechaCreacion: new Date() - 0,
-	    token: sha256(data.name).toString(),
-	    id: data.id_personalizado ? data.id_personalizado : ids.products,
-	    log: this.createLog('createProduct', sha256(data.name).toString(), token),
-	    pesaje: data.pesaje,
-	    venta_por_peso: data.venta_por_peso ? "true" : "false",
-	    tecla: data.tecla != null ? String(data.tecla).trim().toLowerCase() : "",
-	    max_stock: data.max_stock
-	  };
+		let final_data = {
+			name: data.name,
+			price: data.price,
+			price_mayor: data.price_mayor,
+			iva: data.iva ? data.iva : "0",
+			stock: data.stock ? data.stock : Infinity,
+			costo_adquisitivo: data.costo_adquisitivo ? data.costo_adquisitivo : 0,
+			id_personalizado: data.id_personalizado,
+			nanoid: generarToken(new Date()),
+			fechaCreacion: new Date() - 0,
+			token: sha256(data.name).toString(),
+			id: data.id_personalizado ? data.id_personalizado : ids.products,
+			log: this.createLog('createProduct', sha256(data.name).toString(), token),
+			pesaje: data.pesaje,
+			venta_por_peso: data.venta_por_peso ? "true" : "false",
+			tecla: data.tecla != null ? String(data.tecla).trim().toLowerCase() : "",
+			max_stock: data.max_stock
+		};
 
-	  if(final_data.pesaje){
-	  	final_data.materia_prima = "true";
-	  }
+		if (final_data.pesaje) {
+			final_data.materia_prima = "true";
+		}
 
-	  data_db[final_data.id] = final_data;
+		data_db[final_data.id] = final_data;
 
-	  this.db.setData(`/data/simple/products/${final_data.id}`, final_data);
-	  this.db.setData('/data/simple/id', ids);
+		this.db.setData(`/data/simple/products/${final_data.id}`, final_data);
+		this.db.setData('/data/simple/id', ids);
 
-	  // 🔑 Registrar el movimiento unificado
-	  const movimientoId = generarToken(new Date());
-	  const movimiento = {
-	    idMovimiento: movimientoId,
-	    tipo: "crear",
-	    fecha: new Date().toISOString(),
-	    responsable: validateUser.user || 'desconocido',
-	    descripcion: `Creación de producto`,
-	    items: [{
-	      productoId: final_data.id,
-	      nombre: final_data.name,
-	      cantidad: final_data.stock ?? 0,
-	      precioUnitario: final_data.costo_adquisitivo ?? 0,
-	      total: final_data.stock * final_data.costo_adquisitivo
-	    }]
-	  };
+		// 🔑 Registrar el movimiento unificado
+		const movimientoId = generarToken(new Date());
+		const movimiento = {
+			idMovimiento: movimientoId,
+			tipo: "crear",
+			fecha: new Date().toISOString(),
+			responsable: validateUser.user || 'desconocido',
+			descripcion: `Creación de producto`,
+			items: [{
+				productoId: final_data.id,
+				nombre: final_data.name,
+				cantidad: final_data.stock ?? 0,
+				precioUnitario: final_data.costo_adquisitivo ?? 0,
+				total: final_data.stock * final_data.costo_adquisitivo
+			}]
+		};
 
-	  this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
+		this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
 
-	  return { message: "Producto registrado satisfactoriamente", data: final_data, movimiento };
+		return { message: "Producto registrado satisfactoriamente", data: final_data, movimiento };
 	}
 
 
 
 	// INGRESO DE PRODUCTOS Y SALIDA ESTO TOCA MODIFICARLO PARA QUE TAMBIEN TOQUE SUBIRLO.
 	async ingresoProducts(productos = [], token) {
-	  if (!Array.isArray(productos) || productos.length === 0) {
-	    return { message: "Agrega productos para procesar." };
-	  }
+		if (!Array.isArray(productos) || productos.length === 0) {
+			return { message: "Agrega productos para procesar." };
+		}
 
-	  // Validar permisos
-	  const validateUser = this.validatePerms(token, 'productManager');
+		// Validar permisos
+		const validateUser = this.validatePerms(token, 'productManager');
 		if (!validateUser) {
-	    return { message: "El usuario no tiene permisos suficientes." };
-	  }
+			return { message: "El usuario no tiene permisos suficientes." };
+		}
 
-	  let allProducts = this.db.getData('/data/simple/products', ['log']);
-	  let itemsProcesados = [];
-	  let errores = [];
+		let allProducts = this.db.getData('/data/simple/products', ['log']);
+		let itemsProcesados = [];
+		let errores = [];
 
-	  for (const item of productos) {
-	    const { id, cantidad, price } = item;
+		for (const item of productos) {
+			const { id, cantidad, price } = item;
 
-	    if (!id || cantidad === undefined || price === undefined) {
-	      errores.push(`Datos incompletos para producto ID ${id || 'desconocido'}`);
-	      continue;
-	    }
+			if (!id || cantidad === undefined || price === undefined) {
+				errores.push(`Datos incompletos para producto ID ${id || 'desconocido'}`);
+				continue;
+			}
 
-	    let findingProduct = allProducts[id];
-	    if (!findingProduct) {
-	      errores.push(`Producto no existe: ${id}`);
-	      continue;
-	    }
+			let findingProduct = allProducts[id];
+			if (!findingProduct) {
+				errores.push(`Producto no existe: ${id}`);
+				continue;
+			}
 
-	    let precioUnitario = Number(price) / Math.abs(cantidad);
+			let precioUnitario = Number(price) / Math.abs(cantidad);
 
-	    findingProduct.stock = Number(findingProduct.stock ?? 0) + Number(cantidad);
-	    findingProduct.costo_adquisitivo = precioUnitario;
-	    allProducts[findingProduct.id] = findingProduct;
+			findingProduct.stock = Number(findingProduct.stock ?? 0) + Number(cantidad);
+			findingProduct.costo_adquisitivo = precioUnitario;
+			allProducts[findingProduct.id] = findingProduct;
 
-	    itemsProcesados.push({
-	      productoId: findingProduct.id,
-	      nombre: findingProduct.name,
-	      cantidad: Number(cantidad),
-	      precioUnitario: precioUnitario,
-	      total: Number(price)
-	    });
-	  }
+			itemsProcesados.push({
+				productoId: findingProduct.id,
+				nombre: findingProduct.name,
+				cantidad: Number(cantidad),
+				precioUnitario: precioUnitario,
+				total: Number(price)
+			});
+		}
 
-	  // Guardar solo los productos modificados
-	  const idsModificados = [...new Set(itemsProcesados.map(item => item.productoId))];
-	  idsModificados.forEach(pid => {
-	    this.db.setData(`/data/simple/products/${pid}`, allProducts[pid]);
-	  });
+		// Guardar solo los productos modificados
+		const idsModificados = [...new Set(itemsProcesados.map(item => item.productoId))];
+		idsModificados.forEach(pid => {
+			this.db.setData(`/data/simple/products/${pid}`, allProducts[pid]);
+		});
 
-	  // Guardar movimiento único y unificado
-	  const movimientoId = generarToken(new Date());
-	  const movimiento = {
-	    idMovimiento: movimientoId,
-	    tipo: "ingresoManual", // o solo "ingreso" o "salida" según tu lógica
-	    fecha: new Date().toISOString(),
-	    responsable: validateUser.user || 'desconocido',
-	    descripcion: "Ingreso/Salida manual de productos",
-	    items: itemsProcesados
-	  };
+		// Guardar movimiento único y unificado
+		const movimientoId = generarToken(new Date());
+		const movimiento = {
+			idMovimiento: movimientoId,
+			tipo: "ingresoManual", // o solo "ingreso" o "salida" según tu lógica
+			fecha: new Date().toISOString(),
+			responsable: validateUser.user || 'desconocido',
+			descripcion: "Ingreso/Salida manual de productos",
+			items: itemsProcesados
+		};
 
-	  this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
+		this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
 
-	  return {
-	    message: "Productos procesados y movimiento registrado.",
-	    errores,
-	    movimiento
-	  };
+		return {
+			message: "Productos procesados y movimiento registrado.",
+			errores,
+			movimiento
+		};
 	}
 
 
 	// OPTIMIZADA 
 	editProduct(id, newInfo, token) {
-	  // let products = this.db.getData('/data/simple/products');
-	  let findingProduct = this.db.initData(`/data/simple/products/${id}`);
-	  if (!findingProduct) return { message: "El producto no existe." };
+		// let products = this.db.getData('/data/simple/products');
+		let findingProduct = this.db.initData(`/data/simple/products/${id}`);
+		if (!findingProduct) return { message: "El producto no existe." };
 
-	  if (!newInfo) return { message: "Agrega la información de cambio para el producto." };
+		if (!newInfo) return { message: "Agrega la información de cambio para el producto." };
 
-	  let validateUser = this.validatePerms(token, 'productManager');
-	  if (!validateUser) return { message: "El usuario no tiene permisos para editar un producto" };
+		let validateUser = this.validatePerms(token, 'productManager');
+		if (!validateUser) return { message: "El usuario no tiene permisos para editar un producto" };
 
-	  // Actualizar campos
-	  findingProduct.name = newInfo.name ? newInfo.name : findingProduct.name;
-	  findingProduct.price = newInfo.price ? newInfo.price : findingProduct.price;
-	  findingProduct.price_mayor = newInfo.price_mayor ? newInfo.price_mayor : findingProduct.price_mayor;
-	  findingProduct.iva = newInfo.iva ? newInfo.iva : findingProduct.iva;
-	  findingProduct.stock = newInfo.stock ? newInfo.stock : findingProduct.stock;
-	  findingProduct.costo_adquisitivo = newInfo.costo_adquisitivo ? newInfo.costo_adquisitivo : findingProduct.costo_adquisitivo;
-	  findingProduct.max_stock = newInfo.max_stock;
+		// Actualizar campos
+		findingProduct.name = newInfo.name ? newInfo.name : findingProduct.name;
+		findingProduct.price = newInfo.price ? newInfo.price : findingProduct.price;
+		findingProduct.price_mayor = newInfo.price_mayor ? newInfo.price_mayor : findingProduct.price_mayor;
+		findingProduct.iva = newInfo.iva ? newInfo.iva : findingProduct.iva;
+		findingProduct.stock = newInfo.stock ? newInfo.stock : findingProduct.stock;
+		findingProduct.costo_adquisitivo = newInfo.costo_adquisitivo ? newInfo.costo_adquisitivo : findingProduct.costo_adquisitivo;
+		findingProduct.max_stock = newInfo.max_stock;
 
-	  findingProduct.pesaje = newInfo.pesaje;
+		findingProduct.pesaje = newInfo.pesaje;
 
-	  findingProduct.venta_por_peso = newInfo.venta_por_peso ? "true" : "false";
-	  findingProduct.tecla = newInfo.tecla != null ? String(newInfo.tecla).trim().toLowerCase() : (findingProduct.tecla || "");
+		findingProduct.venta_por_peso = newInfo.venta_por_peso ? "true" : "false";
+		findingProduct.tecla = newInfo.tecla != null ? String(newInfo.tecla).trim().toLowerCase() : (findingProduct.tecla || "");
 
-	  if(findingProduct.pesaje){
-	  	findingProduct.materia_prima = "true";
-	  }
+		if (findingProduct.pesaje) {
+			findingProduct.materia_prima = "true";
+		}
 
-	  findingProduct.ultimateDate = new Date() - 0;
-	  findingProduct.log = this.createLog('editProduct', findingProduct.token, token);
+		findingProduct.ultimateDate = new Date() - 0;
+		findingProduct.log = this.createLog('editProduct', findingProduct.token, token);
 
-	  this.db.setData(`/data/simple/products/${findingProduct.id}`, findingProduct);
+		this.db.setData(`/data/simple/products/${findingProduct.id}`, findingProduct);
 
-	  // 📌 Registrar movimiento estandarizado
-	  const movimientoId = generarToken(new Date());
-	  const movimiento = {
-	    idMovimiento: movimientoId,
-	    tipo: "editar",
-	    fecha: new Date().toISOString(),
-	    responsable: validateUser.user || 'desconocido',
-	    descripcion: "Edición de producto",
-	    items: [{
-	      productoId: findingProduct.id,
-	      nombre: findingProduct.name,
-	      cantidad: findingProduct.stock ?? 0,
-	      precioUnitario: findingProduct.costo_adquisitivo ?? 0,
-	      total: findingProduct.stock * findingProduct.costo_adquisitivo
-	    }]
-	  };
+		// 📌 Registrar movimiento estandarizado
+		const movimientoId = generarToken(new Date());
+		const movimiento = {
+			idMovimiento: movimientoId,
+			tipo: "editar",
+			fecha: new Date().toISOString(),
+			responsable: validateUser.user || 'desconocido',
+			descripcion: "Edición de producto",
+			items: [{
+				productoId: findingProduct.id,
+				nombre: findingProduct.name,
+				cantidad: findingProduct.stock ?? 0,
+				precioUnitario: findingProduct.costo_adquisitivo ?? 0,
+				total: findingProduct.stock * findingProduct.costo_adquisitivo
+			}]
+		};
 
-	  this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
+		this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
 
-	  return {
-	    message: "Producto actualizado y movimiento registrado satisfactoriamente.",
-	    data: findingProduct,
-	    movimiento
-	  };
+		return {
+			message: "Producto actualizado y movimiento registrado satisfactoriamente.",
+			data: findingProduct,
+			movimiento
+		};
 	}
 
 	// OPTIMIZADA 
 	deleteProduct(id, token) {
-	  // let products = this.db.getData('/data/simple/products');
-	  let findingProduct = this.db.initData(`/data/simple/products/${id}`);
-	  if (!findingProduct) return { message: "El producto no existe." };
+		// let products = this.db.getData('/data/simple/products');
+		let findingProduct = this.db.initData(`/data/simple/products/${id}`);
+		if (!findingProduct) return { message: "El producto no existe." };
 
-	  let validateUser = this.validatePerms(token, 'productManager');
-	  if (!validateUser) return { message: "El usuario no tiene permisos para eliminar un producto" };
+		let validateUser = this.validatePerms(token, 'productManager');
+		if (!validateUser) return { message: "El usuario no tiene permisos para eliminar un producto" };
 
-	  // Guardar movimiento ANTES de eliminar
-	  const movimientoId = generarToken(new Date());
-	  const movimiento = {
-	    idMovimiento: movimientoId,
-	    tipo: "eliminar",
-	    fecha: new Date().toISOString(),
-	    responsable: validateUser.user || 'desconocido',
-	    descripcion: "Eliminación de producto",
-	    items: [{
-	      productoId: findingProduct.id,
-	      nombre: findingProduct.name,
-	      cantidad: findingProduct.stock ?? 0,
-	      precioUnitario: findingProduct.costo_adquisitivo ?? 0,
-	      total: findingProduct.stock * findingProduct.costo_adquisitivo
-	    }]
-	  };
+		// Guardar movimiento ANTES de eliminar
+		const movimientoId = generarToken(new Date());
+		const movimiento = {
+			idMovimiento: movimientoId,
+			tipo: "eliminar",
+			fecha: new Date().toISOString(),
+			responsable: validateUser.user || 'desconocido',
+			descripcion: "Eliminación de producto",
+			items: [{
+				productoId: findingProduct.id,
+				nombre: findingProduct.name,
+				cantidad: findingProduct.stock ?? 0,
+				precioUnitario: findingProduct.costo_adquisitivo ?? 0,
+				total: findingProduct.stock * findingProduct.costo_adquisitivo
+			}]
+		};
 
-	  this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
+		this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
 
-	  // Eliminar producto real
-	  this.db.removeData(`/data/simple/products/${id}`);
+		// Eliminar producto real
+		this.db.removeData(`/data/simple/products/${id}`);
 
-	  return {
-	    message: "Producto eliminado y movimiento registrado satisfactoriamente.",
-	    data: { id: id },
-	    movimiento
-	  };
+		return {
+			message: "Producto eliminado y movimiento registrado satisfactoriamente.",
+			data: { id: id },
+			movimiento
+		};
 	}
 
 	// OPTIMIZADA LA FUNCION DE OBTENER PRODUCTO
-	getProduct(id, token){
+	getProduct(id, token) {
 		let validateUser = this.validatePerms(token, 'view');
-		if(!validateUser) return {message: "El usuario parece no tener permisos para ver los productos"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos para ver los productos" };
 
 		// let products = this.db.getData('/data/simple/products');
 		let findingProduct = this.db.initData(`/data/simple/products/${id}`);
-		if(!findingProduct) return {message: "Este id o producto esta registrado."};
+		if (!findingProduct) return { message: "Este id o producto esta registrado." };
 
-		return {message: "Producto encontrado.", data: findingProduct};
+		return { message: "Producto encontrado.", data: findingProduct };
 	}
 	// OPTIMIZADA
-	getAllProducts(token){
+	getAllProducts(token) {
 		let validateUser = this.validatePerms(token, 'view');
-		if(!validateUser) return {message: "El usuario parece no tener permisos para ver los productos"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos para ver los productos" };
 
 		let products = this.db.getData('/data/simple/products');
 
-		return {message: "Listado de productos.", data: products, methods: this.db.getData('/data/simple/methods')};
+		return { message: "Listado de productos.", data: products, methods: this.db.getData('/data/simple/methods') };
 	}
 
 	// ROLES MANAGER
 
 
 	// OPTIMIZADA
-	createRole(data = {}, token){
+	createRole(data = {}, token) {
 		let validateUser = this.validatePerms(token, 'roleManager');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
 		// let roles = this.db.getData('/data/simple/roles');
 		let findingRole = this.db.initData(`/data/simple/roles/${data.name}`);
-		if(findingRole) return {message: "Este rol ya existe, usa otro nombre."};
+		if (findingRole) return { message: "Este rol ya existe, usa otro nombre." };
 
-		this.db.setData(`/data/simple/roles/${data.name}`, data.perms?data.perms:{view: "true"});
-		return {message: "Rol creado satisfactoriamente", data: data.perms?data.perms:{view: "true"}};
+		this.db.setData(`/data/simple/roles/${data.name}`, data.perms ? data.perms : { view: "true" });
+		return { message: "Rol creado satisfactoriamente", data: data.perms ? data.perms : { view: "true" } };
 	}
 
 	// OPTIMIZADA
-	editRole(data = {}, token){
+	editRole(data = {}, token) {
 		let validateUser = this.validatePerms(token, 'roleManager');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
-		if(!data.name) return {message: "Tienes que ingresar un nombre al rol"};
+		if (!data.name) return { message: "Tienes que ingresar un nombre al rol" };
 
 		let findingRole = this.db.initData(`/data/simple/roles/${data.name}`)
 
-		if(!findingRole) return {message: "Este rol parece ser inexistente."};
+		if (!findingRole) return { message: "Este rol parece ser inexistente." };
 
 		findingRole = data.perms;
 
 		this.db.setData(`/data/simple/roles/${data.name}`, findingRole);
-		return {message: "Rol editado correctamente.", data: findingRole};
+		return { message: "Rol editado correctamente.", data: findingRole };
 	}
 
 
 	// OPTIMIZADA
-	deleteRole(name, token){
+	deleteRole(name, token) {
 		let validateUser = this.validatePerms(token, 'roleManager');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
-		if(!name) return {message: "Este rol parece ser inexistente."};
+		if (!name) return { message: "Este rol parece ser inexistente." };
 
 		let findingRole = this.db.initData(`/data/simple/roles/${name}`);
 
-		if(!findingRole) return {message: "Este rol parece ser inexistente."};
+		if (!findingRole) return { message: "Este rol parece ser inexistente." };
 
 		this.db.removeData(`/data/simple/roles/${name}`);
 
-		return {message: `El rol ${name} ha sido eliminado satisfactoriamente.`, data: {name: name}};
+		return { message: `El rol ${name} ha sido eliminado satisfactoriamente.`, data: { name: name } };
 	}
 
 	// ------------------ ADMINISTRATION USERS -------------------------------
 	// OPTIMIZADA
-	adminCreateUser(data = {}, token){
+	adminCreateUser(data = {}, token) {
 		let validateUser = this.validatePerms(token, 'all');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
-		if(!data.user) return {message: "Ingresa el nombre del usuario."};
-		if(!data.password) return {message: "Ingresa la contraseña del usuario"};
-		if(!data.role) return {message: "Ingresa el nombre del rol que el usuario va a usar."};
+		if (!data.user) return { message: "Ingresa el nombre del usuario." };
+		if (!data.password) return { message: "Ingresa la contraseña del usuario" };
+		if (!data.role) return { message: "Ingresa el nombre del rol que el usuario va a usar." };
 		
 		return this.createUser(data.user, data.password, data.role);
 	}
 
 	// OPTIMIZADA
-	adminEditUser(data = {}, token){
+	adminEditUser(data = {}, token) {
 		let validateUser = this.validatePerms(token, 'all');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
-		if(!data.user) return {message: "Ingresa el nombre del usuario."};
-		if(!data.password) return {message: "Ingresa la contraseña del usuario"};
-		if(!data.role) return {message: "Ingresa el nombre del rol que el usuario va a usar."};
-		if(!data.id) return {message: "Agrega el id del usuario a modificar."};
+		if (!data.user) return { message: "Ingresa el nombre del usuario." };
+		if (!data.password) return { message: "Ingresa la contraseña del usuario" };
+		if (!data.role) return { message: "Ingresa el nombre del rol que el usuario va a usar." };
+		if (!data.id) return { message: "Agrega el id del usuario a modificar." };
 
 		let user = this.getUserToken(token);
 
-		if(user.data.id == data.id){
+		if (user.data.id == data.id) {
 			data.role = user.data.role;
 		}
 		
@@ -1336,22 +1336,22 @@ class Database {
 	}
 
 	// OPTIMIZADA
-	adminDeleteUser(token_user, token){
+	adminDeleteUser(token_user, token) {
 		let validateUser = this.validatePerms(token, 'all');
 
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
-		if(token_user == token) return {message: "No te puedes eliminar a ti mismo."};
+		if (token_user == token) return { message: "No te puedes eliminar a ti mismo." };
 
 		let userFinding = this.getUserToken(token_user);
-		if(!userFinding) return {message: "El token del usuario enviado no existe."};
+		if (!userFinding) return { message: "El token del usuario enviado no existe." };
 		
 		return this.deleteUser(token_user);
 	};
 
 	// PARA COTIZACIONES ------------------- FALTA DE OPTIMIZACION
-	cotizar(ventas = [], token, mayor){
-		if(!ventas[0]) return {"message": "Añade productos para concretar la venta."};
+	cotizar(ventas = [], token, mayor) {
+		if (!ventas[0]) return { "message": "Añade productos para concretar la venta." };
 
 		let products = this.db.getData('/data/simple/products', ['log']);
 		let ids = this.db.getData('/data/simple/id');
@@ -1363,26 +1363,26 @@ class Database {
 
 		ventas.forEach((element, i, array) => {
 			let findingProduct = products[element.id];
-			if(!findingProduct) return products_dont.push(element.id);
+			if (!findingProduct) return products_dont.push(element.id);
 			let final_product = {};
 
-			if(findingProduct.stock != null) findingProduct.stock = findingProduct.stock - Number(element.cantidad?element.cantidad:0);
-			if(modificados.indexOf(findingProduct.id) === -1) modificados.push(findingProduct.id);
+			if (findingProduct.stock != null) findingProduct.stock = findingProduct.stock - Number(element.cantidad ? element.cantidad : 0);
+			if (modificados.indexOf(findingProduct.id) === -1) modificados.push(findingProduct.id);
 			products[findingProduct.id] = findingProduct;
 
-			if(!mayor) {
+			if (!mayor) {
 				final_product = {
 					id: element.id,
-					precio_unitario: findingProduct.price?findingProduct.price:(element.price?element.price:0),
-					cantidad: element.cantidad?element.cantidad:1,
+					precio_unitario: findingProduct.price ? findingProduct.price : (element.price ? element.price : 0),
+					cantidad: element.cantidad ? element.cantidad : 1,
 					name: findingProduct.name,
 					costo_adquisitivo: findingProduct.costo_adquisitivo
 				}
-			}else {
+			} else {
 				final_product = {
 					id: element.id,
-					precio_unitario: findingProduct.price_mayor?findingProduct.price_mayor:(element.price?element.price:0),
-					cantidad: element.cantidad?element.cantidad:1,
+					precio_unitario: findingProduct.price_mayor ? findingProduct.price_mayor : (element.price ? element.price : 0),
+					cantidad: element.cantidad ? element.cantidad : 1,
 					name: findingProduct.name,
 					costo_adquisitivo: findingProduct.costo_adquisitivo
 				}
@@ -1403,8 +1403,8 @@ class Database {
 			productsNone: products_dont,
 			total_pago: final_count,
 			id: ids.ventas,
-			date: new Date()-0,
-			ventaHechaPor: token?token:"Cajero Común",
+			date: new Date() - 0,
+			ventaHechaPor: token ? token : "Cajero Común",
 			mayor: mayor
 		};
 
@@ -1413,186 +1413,186 @@ class Database {
 			this.db.setData(`/data/simple/products/${pid}`, products[pid]);
 		});
 
-		return {message: "Cotización", data: final_venta};
+		return { message: "Cotización", data: final_venta };
 	}
 
 	// OPTIMIZADA
 	// NO NECESITA ELIMINARSE LA LINEA CANTIDADSOLICITADA
 	createVenta(ventas = [], total_recibido = 0, token, mayor, digital, clientId, deudorId, date) {
-	  if (!ventas[0]) return { message: "Añade productos para concretar la venta." };
+		if (!ventas[0]) return { message: "Añade productos para concretar la venta." };
 
-	  total_recibido = redondearMoneda(removeCommaSeparators(String(total_recibido == null ? 0 : total_recibido))) || 0;
+		total_recibido = redondearMoneda(removeCommaSeparators(String(total_recibido == null ? 0 : total_recibido))) || 0;
 
-	  let products = this.db.getData('/data/simple/products', ['log']);
-	  let ids = this.db.getData('/data/simple/id');
+		let products = this.db.getData('/data/simple/products', ['log']);
+		let ids = this.db.getData('/data/simple/id');
 
-	  let final_data = [];
-	  let products_dont = [];
-	  let final_count = 0;
+		let final_data = [];
+		let products_dont = [];
+		let final_count = 0;
 
-	  for (const element of ventas) {
-	    let findingProduct = products[element.id];
-	    if (!findingProduct) {
-	      products_dont.push(element.id);
-	      continue;
-	    }
+		for (const element of ventas) {
+			let findingProduct = products[element.id];
+			if (!findingProduct) {
+				products_dont.push(element.id);
+				continue;
+			}
 
-	    let cantidadSolicitada = Number(element.cantidad);
-	    if (findingProduct.stock != null && findingProduct.stock < cantidadSolicitada) {
-	      return {
-	        message: `No hay suficiente stock para "${findingProduct.name}". Disponible: ${findingProduct.stock}, Solicitado: ${cantidadSolicitada}`
-	      };
-	    }
-	  }
+			let cantidadSolicitada = Number(element.cantidad);
+			if (findingProduct.stock != null && findingProduct.stock < cantidadSolicitada) {
+				return {
+					message: `No hay suficiente stock para "${findingProduct.name}". Disponible: ${findingProduct.stock}, Solicitado: ${cantidadSolicitada}`
+				};
+			}
+		}
 
-	  ventas.forEach(element => {
-	    let findingProduct = products[element.id];
-	    if (!findingProduct) return products_dont.push(element.id);
+		ventas.forEach(element => {
+			let findingProduct = products[element.id];
+			if (!findingProduct) return products_dont.push(element.id);
 
-	    let cantidadSolicitada = Number(element.cantidad ?? 0);
-	    if (cantidadSolicitada <= 0) cantidadSolicitada = 1;
+			let cantidadSolicitada = Number(element.cantidad ?? 0);
+			if (cantidadSolicitada <= 0) cantidadSolicitada = 1;
 
-	    if (findingProduct.stock != null) {
-	      findingProduct.stock -= cantidadSolicitada;
-	    }
+			if (findingProduct.stock != null) {
+				findingProduct.stock -= cantidadSolicitada;
+			}
 
-	    // ⚡ NO vuelves a guardar TODO products
-	    // ⚡ Guarda solo el archivo individual
+			// ⚡ NO vuelves a guardar TODO products
+			// ⚡ Guarda solo el archivo individual
 
-	    let final_product = {
-	      id: element.id,
-	      precio_unitario: mayor?(findingProduct.price_mayor?findingProduct.price_mayor:(element.price?element.price:0)):(findingProduct.price?findingProduct.price:(element.price?element.price:0)),
-	      cantidad: cantidadSolicitada,
-	      name: findingProduct.name,
-	      costo_adquisitivo: findingProduct.costo_adquisitivo
-	    };
+			let final_product = {
+				id: element.id,
+				precio_unitario: mayor ? (findingProduct.price_mayor ? findingProduct.price_mayor : (element.price ? element.price : 0)) : (findingProduct.price ? findingProduct.price : (element.price ? element.price : 0)),
+				cantidad: cantidadSolicitada,
+				name: findingProduct.name,
+				costo_adquisitivo: findingProduct.costo_adquisitivo
+			};
 
-	    final_product.precio_final = element.precio_final != null
-	        ? redondearMoneda(element.precio_final)
-	        : Math.round(final_product.precio_unitario * final_product.cantidad);
+			final_product.precio_final = element.precio_final != null
+				? redondearMoneda(element.precio_final)
+				: Math.round(final_product.precio_unitario * final_product.cantidad);
 
-	    // PARA SABER QUE PRODUCTOS FUERON MAS VENDIDOS
-	    findingProduct.selledChantity = (findingProduct.selledChantity?findingProduct.selledChantity:0) + 1;
-	    findingProduct.selledPricing = (findingProduct.selledPricing?findingProduct.selledPricing:0) + final_product.precio_final;
+			// PARA SABER QUE PRODUCTOS FUERON MAS VENDIDOS
+			findingProduct.selledChantity = (findingProduct.selledChantity ? findingProduct.selledChantity : 0) + 1;
+			findingProduct.selledPricing = (findingProduct.selledPricing ? findingProduct.selledPricing : 0) + final_product.precio_final;
 
-	    this.db.setData(`/data/simple/products/${findingProduct.id}`, findingProduct);
+			this.db.setData(`/data/simple/products/${findingProduct.id}`, findingProduct);
 
-	    final_data.push(final_product);
-	    final_count = redondearMoneda(final_count + final_product.precio_final);
-	  });
+			final_data.push(final_product);
+			final_count = redondearMoneda(final_count + final_product.precio_final);
+		});
 
-	  // Si no hay deudor, el pago debe cubrir el total
-	  if (!deudorId && final_count - total_recibido > 0.005) {
-	    return { message: "El total recibido no puede ser menor al total pago." };
-	  }
+		// Si no hay deudor, el pago debe cubrir el total
+		if (!deudorId && final_count - total_recibido > 0.005) {
+			return { message: "El total recibido no puede ser menor al total pago." };
+		}
 
-	  ids.ventas += 1;
+		ids.ventas += 1;
 
-	  let fechaVenta = date ? (new Date(date) - 0) : new Date() - 0;
+		let fechaVenta = date ? (new Date(date) - 0) : new Date() - 0;
 
-	  let final_venta = {
-	    products: final_data,
-	    productsNone: products_dont,
-recibido: total_recibido == null ? final_count : redondearMoneda(total_recibido),
-    total_pago: final_count,
-    id: ids.ventas,
-    date: fechaVenta,
-    ventaHechaPor: token || "Cajero Común",
-    mayor: mayor,
-    digital: digital
-  };
+		let final_venta = {
+			products: final_data,
+			productsNone: products_dont,
+			recibido: total_recibido == null ? final_count : redondearMoneda(total_recibido),
+			total_pago: final_count,
+			id: ids.ventas,
+			date: fechaVenta,
+			ventaHechaPor: token || "Cajero Común",
+			mayor: mayor,
+			digital: digital
+		};
 
-final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_venta.total_pago));
+		final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_venta.total_pago));
 
-  this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
-  this.db.setData('/data/simple/id', ids);
+		this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
+		this.db.setData('/data/simple/id', ids);
 
-  // VINCULACION CON CLIENTE / DEUDOR: registra la compra y/o la deuda fiada
-  let vinculoId = clientId || deudorId;
-  if (vinculoId) {
-    try {
-      // Cada ficha se lee UNA sola vez: setData escribe el registro completo, asi
-      // que trabajar sobre dos copias distintas de la misma ficha haria que una
-      // pisara a la otra y se perdieran compras o movimientos.
-      let findingClient = clientId ? this.db.getData('/data/simple/clientes/' + clientId) : null;
-      let clienteDeudor = null;
-      if (deudorId) {
-        clienteDeudor = (String(clientId || '') !== '' && String(clientId) === String(deudorId))
-          ? findingClient
-          : this.db.getData('/data/simple/clientes/' + deudorId);
-      }
+		// VINCULACION CON CLIENTE / DEUDOR: registra la compra y/o la deuda fiada
+		let vinculoId = clientId || deudorId;
+		if (vinculoId) {
+			try {
+				// Cada ficha se lee UNA sola vez: setData escribe el registro completo, asi
+				// que trabajar sobre dos copias distintas de la misma ficha haria que una
+				// pisara a la otra y se perdieran compras o movimientos.
+				let findingClient = clientId ? this.db.getData('/data/simple/clientes/' + clientId) : null;
+				let clienteDeudor = null;
+				if (deudorId) {
+					clienteDeudor = (String(clientId || '') !== '' && String(clientId) === String(deudorId))
+						? findingClient
+						: this.db.getData('/data/simple/clientes/' + deudorId);
+				}
 
-      // La compra se registra en QUIEN COMPRO: el cliente si existe, si no el deudor.
-      // Antes solo se guardaba con clienteId, y el Excel agrupa por deudorId, por lo
-      // que una venta fiada sin cliente quedaba en el Excel y no en el popup.
-      let destinoCompra = findingClient || clienteDeudor;
+				// La compra se registra en QUIEN COMPRO: el cliente si existe, si no el deudor.
+				// Antes solo se guardaba con clienteId, y el Excel agrupa por deudorId, por lo
+				// que una venta fiada sin cliente quedaba en el Excel y no en el popup.
+				let destinoCompra = findingClient || clienteDeudor;
 
-      if (destinoCompra) {
-        if (clientId) {
-          final_venta.clienteId = clientId;
-          final_venta.cliente = destinoCompra.name;
-        }
-        destinoCompra.compras = converterArray(destinoCompra.compras || []);
-        destinoCompra.compras.push({
-          ventaId: final_venta.id,
-          fecha: fechaVenta,
-          total: final_venta.total_pago,
-          productos: final_data.map(p => ({
-            nombre: p.name,
-            cantidad: p.cantidad,
-            total: p.precio_final
-          }))
-        });
-      }
+				if (destinoCompra) {
+					if (clientId) {
+						final_venta.clienteId = clientId;
+						final_venta.cliente = destinoCompra.name;
+					}
+					destinoCompra.compras = converterArray(destinoCompra.compras || []);
+					destinoCompra.compras.push({
+						ventaId: final_venta.id,
+						fecha: fechaVenta,
+						total: final_venta.total_pago,
+						productos: final_data.map(p => ({
+							nombre: p.name,
+							cantidad: p.cantidad,
+							total: p.precio_final
+						}))
+					});
+				}
 
-      // VENTA A CREDITO (fiado): la diferencia se registra como deuda del deudor
-      let deudaPendiente = redondearMoneda(final_venta.total_pago - final_venta.recibido);
-      if (clienteDeudor && deudorId && deudaPendiente > 0.005) {
-        clienteDeudor.deuda = Number(clienteDeudor.deuda ? clienteDeudor.deuda : 0) + deudaPendiente;
-        if(!clienteDeudor.cuenta_abierta) clienteDeudor.cuenta_abierta = new Date();
-        clienteDeudor.movements = converterArray(clienteDeudor.movements || []);
-        clienteDeudor.movements.push({
-          monto: deudaPendiente,
-          desc: `Venta fiada #${final_venta.id}`,
-          date: new Date(fechaVenta).toString(),
-          sign: "-",
-          ventaId: final_venta.id
-        });
-      }
+				// VENTA A CREDITO (fiado): la diferencia se registra como deuda del deudor
+				let deudaPendiente = redondearMoneda(final_venta.total_pago - final_venta.recibido);
+				if (clienteDeudor && deudorId && deudaPendiente > 0.005) {
+					clienteDeudor.deuda = Number(clienteDeudor.deuda ? clienteDeudor.deuda : 0) + deudaPendiente;
+					if (!clienteDeudor.cuenta_abierta) clienteDeudor.cuenta_abierta = new Date();
+					clienteDeudor.movements = converterArray(clienteDeudor.movements || []);
+					clienteDeudor.movements.push({
+						monto: deudaPendiente,
+						desc: `Venta fiada #${final_venta.id}`,
+						date: new Date(fechaVenta).toString(),
+						sign: "-",
+						ventaId: final_venta.id
+					});
+				}
 
-      // Cada ficha distinta se guarda una vez, con compras y movimientos ya aplicados.
-      if (findingClient) {
-        this.db.setData(`/data/simple/clientes/${clientId}`, findingClient);
-      }
-      if (clienteDeudor && String(deudorId) !== String(clientId || '')) {
-        this.db.setData(`/data/simple/clientes/${deudorId}`, clienteDeudor);
-      }
+				// Cada ficha distinta se guarda una vez, con compras y movimientos ya aplicados.
+				if (findingClient) {
+					this.db.setData(`/data/simple/clientes/${clientId}`, findingClient);
+				}
+				if (clienteDeudor && String(deudorId) !== String(clientId || '')) {
+					this.db.setData(`/data/simple/clientes/${deudorId}`, clienteDeudor);
+				}
 
-      if (findingClient || clienteDeudor) {
-        this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
-      }
-    } catch (err) {}
-  }
+				if (findingClient || clienteDeudor) {
+					this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
+				}
+			} catch (err) {}
+		}
 
-  // MARCA LA VENTA COMO FIADA PARA REFERENCIA EN REPORTES
-  if (deudorId) {
-    final_venta.deudorId = deudorId;
-    final_venta.fiado = true;
-    this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
-  }
+		// MARCA LA VENTA COMO FIADA PARA REFERENCIA EN REPORTES
+		if (deudorId) {
+			final_venta.deudorId = deudorId;
+			final_venta.fiado = true;
+			this.db.setData(`/data/simple/ventas/${final_venta.id}`, final_venta);
+		}
 
-  return { message: "Venta hecha satisfactoriamente", data: final_venta };
-}
+		return { message: "Venta hecha satisfactoriamente", data: final_venta };
+	}
 
 
 	// OPTIMIZADA
-	editVenta(data = {id: 0}, total_recibido){
+	editVenta(data = { id: 0 }, total_recibido) {
 		// let ventas = this.db.getData('/data/simple/ventas');
 		let ids = this.db.getData('/data/simple/id');
 
 
 		let findingVenta = this.db.initData(`/data/simple/ventas/${data.id}`);
-		if(!findingVenta) return {message: "Esta venta no existe o no fue concretada"};
+		if (!findingVenta) return { message: "Esta venta no existe o no fue concretada" };
 
 		// La venta se reconstruye con un id NUEVO, asi que hay que conservar sus
 		// metadatos y limpiar los registros del cliente que quedaron apuntando al id viejo.
@@ -1627,32 +1627,32 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 
 	// CAMBIA LA FECHA DE UNA VENTA YA CONCRETADA y la sincroniza
 	// en las compras del cliente y en el movimiento de deuda fiada.
-	editVentaDate(id, fecha, token){
-		if(!id) return {message: "Tienes que indicar el id de la venta"};
-		if(!fecha) return {message: "Tienes que indicar la nueva fecha de la venta"};
+	editVentaDate(id, fecha, token) {
+		if (!id) return { message: "Tienes que indicar el id de la venta" };
+		if (!fecha) return { message: "Tienes que indicar la nueva fecha de la venta" };
 
 		let validateUser = this.validatePerms(token, 'facturar');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };
 
 		let findingVenta = this.db.initData(`/data/simple/ventas/${id}`);
-		if(!findingVenta) return {message: "Esta venta no existe o no fue concretada"};
+		if (!findingVenta) return { message: "Esta venta no existe o no fue concretada" };
 
 		let nuevaFecha = new Date(fecha) - 0;
-		if(isNaN(nuevaFecha)) return {message: "La fecha indicada es invalida"};
+		if (isNaN(nuevaFecha)) return { message: "La fecha indicada es invalida" };
 
 		findingVenta.date = nuevaFecha;
 		this.db.setData(`/data/simple/ventas/${findingVenta.id}`, findingVenta);
 
 		let clienteId = findingVenta.clienteId || findingVenta.deudorId;
-		if(clienteId){
+		if (clienteId) {
 			try {
 				let cliente = this.db.getData('/data/simple/clientes/' + clienteId);
-				if(cliente){
+				if (cliente) {
 					let changed = false;
 
 					let compras = converterArray(cliente.compras || []);
 					compras.forEach(c => {
-						if(String(c.ventaId) === String(findingVenta.id)){
+						if (String(c.ventaId) === String(findingVenta.id)) {
 							c.fecha = nuevaFecha;
 							changed = true;
 						}
@@ -1661,24 +1661,24 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 
 					let movements = converterArray(cliente.movements || []);
 					movements.forEach(m => {
-						if(String(m.ventaId) === String(findingVenta.id)){
+						if (String(m.ventaId) === String(findingVenta.id)) {
 							m.date = new Date(nuevaFecha).toString();
 							changed = true;
 						}
 					});
 					cliente.movements = movements;
 
-					if(changed) this.db.setData('/data/simple/clientes/' + clienteId, cliente);
+					if (changed) this.db.setData('/data/simple/clientes/' + clienteId, cliente);
 				}
 			} catch (err) {}
 		}
 
-		return {message: "Fecha de la venta actualizada exitosamente", data: findingVenta};
+		return { message: "Fecha de la venta actualizada exitosamente", data: findingVenta };
 	}
 
 	// LIMPIA LAS COMPRAS Y LA DEUDA FIADA DEL CLIENTE POR ID DE VENTA
 	// Devuelve true si logro limpiar algo en el cliente.
-	_limpiarComprasYDeudaCliente(clienteId, ventaId){
+	_limpiarComprasYDeudaCliente(clienteId, ventaId) {
 		if (!clienteId) return false;
 		try {
 			let cliente = this.db.getData('/data/simple/clientes/' + clienteId);
@@ -1733,7 +1733,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 	}
 
 	// OPTIMIZADA
-	deleteVenta(id, clienteId){
+	deleteVenta(id, clienteId) {
 		// let ventas = this.db.getData('/data/simple/ventas');
 		let findingVenta = this.db.initData(`/data/simple/ventas/${id}`);
 
@@ -1751,7 +1751,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 					ventaNoEncontrada: true
 				};
 			}
-			return {message: "Esta venta no existe o no fue concretada."};
+			return { message: "Esta venta no existe o no fue concretada." };
 		}
 
 		let clienteVenta = findingVenta.clienteId || findingVenta.deudorId;
@@ -1776,25 +1776,28 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 
 		this.db.removeData(`/data/simple/ventas/${id}`);
 
-		return {message: "Venta eliminada satisfactoriamente.", data: true, ventaEliminada: findingVenta};
+		return { message: "Venta eliminada satisfactoriamente.", data: true, ventaEliminada: findingVenta };
 	}
 
 
 	// OPTIMIZADA
-	getAllVentas(){
-		let ventas = this.db.getData('/data/simple/ventas');
+	getAllVentas() {
+		let clientes = this.db.getData('/data/simple/clientes');
 
-		return {message: "Lista de todas las ventas", data: ventas};
+		// Extrae y aplanar todas las compras de la lista de clientes
+		let ventas = clientes.flatMap(cliente => cliente.compras || []);
+
+		return { message: "Lista de todas las ventas", data: ventas };
 	}
 
 	// -------------------------------------------------------------------------------
 	// -> POR ACTUALIZAR >>
 	// -------------------------------------------------------------------------------
-	findClient(data = {}, token){
-		if(!data) return {message: "Agrega la información del cliente"};
+	findClient(data = {}, token) {
+		if (!data) return { message: "Agrega la información del cliente" };
 
 		let validateUser = this.validatePerms(token, 'view');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
 		if (data.id != null) {
 			let directo = this.db.getData('/data/simple/clientes/' + data.id);
@@ -1814,16 +1817,16 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		}
 		return undefined;
 	}
-	createClient(data, token){
-		if(!data) return {message: "Agrega la información del cliente"};
+	createClient(data, token) {
+		if (!data) return { message: "Agrega la información del cliente" };
 
 		let validateUser = this.validatePerms(token, 'clientManager');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
 		let findingClient = this.findClient(data, token);
-		if(findingClient) return {message: "Este nombre, documento o id ya existe."};
+		if (findingClient) return { message: "Este nombre, documento o id ya existe." };
 
-		if(!data.name) return {message: "El nombre es obligatorio ponerlo."};
+		if (!data.name) return { message: "El nombre es obligatorio ponerlo." };
 
 		let ids = this.db.getData('/data/simple/id');
 
@@ -1835,7 +1838,7 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 			document: data.document,
 			phone: data.phone,
 			correo: data.correo,
-			date: new Date()-0,
+			date: new Date() - 0,
 			city: data.city,
 			direccion: data.direccion,
 			categoria: data.categoria != null ? String(data.categoria).trim() : "",
@@ -1850,14 +1853,14 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		this.db.setData('/data/simple/id', ids);
 		this.db.setData('/data/simple/clientes/' + ids.clientes, final_client);
 
-		return {message: "Cliente guardado satisfactoriamente", data: final_client};
+		return { message: "Cliente guardado satisfactoriamente", data: final_client };
 	}
 
-	createClientsBulk(clientes = [], token){
-		if(!clientes || !clientes.length) return {message: "Agrega la lista de clientes a importar."};
+	createClientsBulk(clientes = [], token) {
+		if (!clientes || !clientes.length) return { message: "Agrega la lista de clientes a importar." };
 
 		let validateUser = this.validatePerms(token, 'clientManager');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
 		let clients = this.db.getData('/data/simple/clientes', ['compras', 'movements']);
 		let ids = this.db.getData('/data/simple/id');
@@ -1865,8 +1868,8 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		let existingNames = new Set();
 		let existingDocs = new Set();
 		converterArray(clients).forEach(ch => {
-			if(ch && ch.name) existingNames.add(String(ch.name).trim().toLowerCase());
-			if(ch && ch.document) existingDocs.add(String(ch.document).trim());
+			if (ch && ch.name) existingNames.add(String(ch.name).trim().toLowerCase());
+			if (ch && ch.document) existingDocs.add(String(ch.document).trim());
 		});
 
 		let creados = [];
@@ -1875,16 +1878,16 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		clientes.forEach((item, index) => {
 			let fila = index + 1;
 			let name = item.name != null ? String(item.name).trim() : "";
-			if(!name) return omitidos.push({ fila, name, razon: "Sin nombre" });
+			if (!name) return omitidos.push({ fila, name, razon: "Sin nombre" });
 
 			let document = item.document != null ? String(item.document).trim() : "";
 			document = document.replace(/[.\-, ]/g, "");
 
-			if(existingNames.has(name.toLowerCase())) return omitidos.push({ fila, name, razon: "Nombre ya existente" });
-			if(document && existingDocs.has(document)) return omitidos.push({ fila, name, razon: "Documento ya existente" });
+			if (existingNames.has(name.toLowerCase())) return omitidos.push({ fila, name, razon: "Nombre ya existente" });
+			if (document && existingDocs.has(document)) return omitidos.push({ fila, name, razon: "Documento ya existente" });
 
 			existingNames.add(name.toLowerCase());
-			if(document) existingDocs.add(document);
+			if (document) existingDocs.add(document);
 
 			ids.clientes = (ids.clientes || 0) + 1;
 
@@ -1924,17 +1927,17 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		};
 	}
 
-	editClient(data, token){
-		if(!data) return {message: "Agrega la información del cliente"};
+	editClient(data, token) {
+		if (!data) return { message: "Agrega la información del cliente" };
 
 		let validateUser = this.validatePerms(token, 'clientManager');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
-		if(!data.id) return {message: "Agrega el id del cliente que quieres modificar."};
+		if (!data.id) return { message: "Agrega el id del cliente que quieres modificar." };
 
 		let cliente = this.db.getData('/data/simple/clientes/' + data.id);
 
-		if(!cliente) return {message: "Este cliente no existe o ya fue eliminado."};
+		if (!cliente) return { message: "Este cliente no existe o ya fue eliminado." };
 
 		cliente.name = data.name;
 		cliente.document = data.document
@@ -1948,28 +1951,28 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		this.db.setData('/data/simple/clientes/' + data.id, cliente);
 
 
-		return {message: "Cliente editado satisfactoriamente", data: cliente};
+		return { message: "Cliente editado satisfactoriamente", data: cliente };
 	}
 
-	deleteClient(id, token){
-		if(!id) return {message: "Agrega la información del cliente"};
+	deleteClient(id, token) {
+		if (!id) return { message: "Agrega la información del cliente" };
 
 		let validateUser = this.validatePerms(token, 'clientManager');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
 		let clients = this.db.getData('/data/simple/clientes');
 
-		if(!clients[id]) return {message: "Este cliente no existe o ya fue eliminado."};
+		if (!clients[id]) return { message: "Este cliente no existe o ya fue eliminado." };
 
 		let clienteEliminado = clients[id];
 
 		this.db.removeData(`/data/simple/clientes/${id}`);
-		return {message: "Cliente eliminado satisfactoriamente", data: clienteEliminado};
+		return { message: "Cliente eliminado satisfactoriamente", data: clienteEliminado };
 	}
 
-	getClients(data){
+	getClients(data) {
 		let validateUser = this.validatePerms(data, 'view');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 		let clientes = this.db.getData('/data/simple/clientes', ['compras', 'movements']);
 		let livianos = {};
 		converterArray(clientes).forEach(ch => {
@@ -1980,27 +1983,27 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 				deuda: Number(ch.deuda ? ch.deuda : 0)
 			};
 		});
-		return {message: "Lista de clientes", data: livianos};
+		return { message: "Lista de clientes", data: livianos };
 	}
 
-	getClientesCompletos(data){
+	getClientesCompletos(data) {
 		let validateUser = this.validatePerms(data, 'view');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 		let clientes = this.db.getData('/data/simple/clientes', ['compras', 'movements']);
-		return {message: "Lista de clientes", data: clientes};
+		return { message: "Lista de clientes", data: clientes };
 	}
 
 	// CLIENTES CON DEUDA: devuelve unicamente los clientes que deben (deuda > 0)
-	getClientesConDeuda(token){
+	getClientesConDeuda(token) {
 		let validateUser = this.validatePerms(token, 'facturar');
-		if(!validateUser) return {message: "El usuario parece no tener permisos"};
+		if (!validateUser) return { message: "El usuario parece no tener permisos" };
 
 		let clientes = this.db.getData('/data/simple/clientes', ['compras']);
 		let array_clientes = converterArray(clientes);
 
 		let deudores = {};
 		array_clientes.forEach(ch => {
-			if(Number(ch.deuda ? ch.deuda : 0) > 0){
+			if (Number(ch.deuda ? ch.deuda : 0) > 0) {
 				deudores[ch.id] = {
 					id: ch.id,
 					name: ch.name,
@@ -2013,17 +2016,17 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 			}
 		});
 
-		return {message: "Info deudores", data: deudores};
+		return { message: "Info deudores", data: deudores };
 	}
 
 	// HISTORIAL DE COMPRAS DE UN CLIENTE: ventas vinculadas, total acumulado
 	// y resumen por mes (cuánto ha comprado a lo largo del tiempo)
-	getComprasCliente(id, token){
+	getComprasCliente(id, token) {
 		let validateUser = this.validatePerms(token, 'view');
-		if(!validateUser) return {message: "No tiene permisos suficientes."};
+		if (!validateUser) return { message: "No tiene permisos suficientes." };
 
 		let findingClient = this.db.getData('/data/simple/clientes/' + id);
-		if(!findingClient) return {message: "Este cliente no existe o ya fue eliminado."};
+		if (!findingClient) return { message: "Este cliente no existe o ya fue eliminado." };
 
 		let compras = converterArray(findingClient.compras || {});
 		compras.forEach(c => c.productos = converterArray(c.productos || []));
@@ -2063,21 +2066,21 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 	// OBTENER EL PRESUPUESTO ACTUAL
 
 	// OPTIMIZADA
-	getPresupuestoActivo(token){
+	getPresupuestoActivo(token) {
 		let findingToken = this.validatePerms(token);
 
-		if(!findingToken) return {message: "No tienes permisos suficientes para esta acción."};
+		if (!findingToken) return { message: "No tienes permisos suficientes para esta acción." };
 
 		let dataPresupuestos = this.db.getData('/data/simple/presupuestos_activo');
 
-		return {message: "Presupuesto activo", data: dataPresupuestos};
+		return { message: "Presupuesto activo", data: dataPresupuestos };
 	}
 
 	// OPTIMIZADA
-	setPresupuestoActivo(token, data = {}){
+	setPresupuestoActivo(token, data = {}) {
 		let findingToken = this.validatePerms(token);
 
-		if(!findingToken) return {message: "No tienes permisos suficientes para esta acción"};
+		if (!findingToken) return { message: "No tienes permisos suficientes para esta acción" };
 
 		let nuevoPresupuesto = {
 			name: data.name,
@@ -2088,16 +2091,16 @@ final_venta.vueltas = Math.max(0, redondearMoneda(final_venta.recibido - final_v
 		this.db.setData('/data/simple/presupuestos_activo', nuevoPresupuesto);
 
 
-		let finalPagos = converterArray(nuevoPresupuesto.pagos?nuevoPresupuesto.pagos:{});
+		let finalPagos = converterArray(nuevoPresupuesto.pagos ? nuevoPresupuesto.pagos : {});
 
 
 		let total = 0;
 		let totalPagado = 0;
 
 		finalPagos.forEach(pago => {
-		  const valor = Number(pago.valor) || 0;
-		  total += valor;
-		  if (pago.tachado === 'true') totalPagado += valor;
+			const valor = Number(pago.valor) || 0;
+			total += valor;
+			if (pago.tachado === 'true') totalPagado += valor;
 		});
 
 		whatsapp(`
@@ -2109,7 +2112,7 @@ Presupuesto: *${nuevoPresupuesto.name}*
 
 📂 Pagos programados:
 ${finalPagos.length > 0 ? finalPagos.map((pago, i) => 
-  `${i+1}. ${pago.tachado=="true" ? "~" : ""}${pago.description} — $${formatNumber(pago.valor)} ${pago.type=="Fijo" ? ">Fijo" : ">Variable"}${pago.tachado=="true" ? "~" : ""}`).join('\n') : 'No se han registrado pagos aún.'}
+			`${i + 1}. ${pago.tachado == "true" ? "~" : ""}${pago.description} — $${formatNumber(pago.valor)} ${pago.type == "Fijo" ? ">Fijo" : ">Variable"}${pago.tachado == "true" ? "~" : ""}`).join('\n') : 'No se han registrado pagos aún.'}
 
 
 📊 *Total a pagar:* $${formatNumber(total)}
@@ -2119,21 +2122,21 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 		`);
 
 
-		return {message: "Presupuesto guardado satisfactoriamente", data: nuevoPresupuesto};
- 	};
+		return { message: "Presupuesto guardado satisfactoriamente", data: nuevoPresupuesto };
+	};
 
- 	// OPTIMIZADA
-	finalizarPresupuestoActivo(token){
+	// OPTIMIZADA
+	finalizarPresupuestoActivo(token) {
 		let findingToken = this.validatePerms(token);
 
-		if(!findingToken) return {message: "No tienes permisos suficientes para esta acción"};
+		if (!findingToken) return { message: "No tienes permisos suficientes para esta acción" };
 
 		let dataPresupuestos = this.db.initData('/data/simple/presupuestos_activo');
 
-		if(!dataPresupuestos) return {message: "No hay un presupuesto activo, crea uno"};
+		if (!dataPresupuestos) return { message: "No hay un presupuesto activo, crea uno" };
 
 		let ids = this.db.getData('/data/simple/id');
-		ids.presupuestos = (ids.presupuestos?ids.presupuestos:0) + 1;
+		ids.presupuestos = (ids.presupuestos ? ids.presupuestos : 0) + 1;
 
 		// let presupuestos = this.db.getData('/data/simple/presupuestos');
 
@@ -2147,84 +2150,84 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 		this.db.removeData('/data/simple/presupuestos_activo');
 		this.db.setData('/data/simple/id', ids);
 
-		return {message: "presupuestos actualizados", data: finalPresupuesto};
+		return { message: "presupuestos actualizados", data: finalPresupuesto };
 	};
 
 
 	// FUNCION DE PRESUPUESTOS
 
 	// OPTIMIZADA
-	presupuestos(token){
+	presupuestos(token) {
 		let findingToken = this.validatePerms(token);
 
-		if(!findingToken) return {message: "No tienes permisos suficientes para esta acción."};
+		if (!findingToken) return { message: "No tienes permisos suficientes para esta acción." };
 
 		let dataPresupuestos = this.db.getData('/data/simple/presupuestos');
 
-		return {message: "Presupuestos descargados", data: dataPresupuestos};
+		return { message: "Presupuestos descargados", data: dataPresupuestos };
 	};
 
 	// OPTIMIZADA
-	getPresupuesto(token, id){
+	getPresupuesto(token, id) {
 		let findingToken = this.validatePerms(token);
 
-		if(!findingToken) return {message: "No tienes permisos suficientes para esta acción"};
+		if (!findingToken) return { message: "No tienes permisos suficientes para esta acción" };
 
 		// let presupuestos = this.db.getData('/data/simple/presupuestos');
 
 		let findingPresupuesto = this.db.initData(`/data/simple/presupuestos/${id}`);
-		if(!findingPresupuesto) return {message: "Este presupuesto pudo haber sido eliminado ya"};
+		if (!findingPresupuesto) return { message: "Este presupuesto pudo haber sido eliminado ya" };
 
-		return {message: "Información descargada satisfactoriamente", data: findingPresupuesto};
+		return { message: "Información descargada satisfactoriamente", data: findingPresupuesto };
 	}
 
 	// OPTIMIZADA
-	removePresupuesto(token, id){
+	removePresupuesto(token, id) {
 		let findingToken = this.validatePerms(token);
 
-		if(!findingToken) return {message: "No tienes permisos suficientes para esta acción"};
+		if (!findingToken) return { message: "No tienes permisos suficientes para esta acción" };
 
 		// let presupuestos = this.db.getData('/data/simple/presupuestos');
 
 		let findingPresupuesto = this.db.initData(`/data/simple/presupuestos/${id}`);
-		if(!findingPresupuesto) return {message: "Este presupuesto pudo haber sido eliminado ya"};
+		if (!findingPresupuesto) return { message: "Este presupuesto pudo haber sido eliminado ya" };
 
 		this.db.removeData(`/data/simple/presupuestos/${id}`);
 
-		return {message: "Presupuesto eliminado satisfactoriamente", data: findingPresupuesto};
+		return { message: "Presupuesto eliminado satisfactoriamente", data: findingPresupuesto };
 	}
 
 	// OPTIMIZADA
-	presupuestoAActivo(token, id){
+	presupuestoAActivo(token, id) {
 		let findingToken = this.validatePerms(token);
 
-		if(!findingToken) return {message: "No tienes permisos suficientes para esta acción"};
+		if (!findingToken) return { message: "No tienes permisos suficientes para esta acción" };
 
 		// let presupuestos = this.db.getData('/data/simple/presupuestos');
 
 		let findingPresupuesto = this.db.initData(`/data/simple/presupuestos/${id}`);
-		if(!findingPresupuesto) return {message: "Este presupuesto pudo haber sido eliminado ya"};
+		if (!findingPresupuesto) return { message: "Este presupuesto pudo haber sido eliminado ya" };
 
 		let findingPresupuestoActivo = this.db.initData('/data/simple/presupuestos_activo');
 
-		if(findingPresupuestoActivo) return {message: "Hay un presupuesto activo ya, finalizalo o eliminalo."};
+		if (findingPresupuestoActivo) return { message: "Hay un presupuesto activo ya, finalizalo o eliminalo." };
 
 		this.removeData(`/data/simple/presupuestos/${id}`);
 
 		this.db.setData('/data/simple/presupuestos_activo', findingPresupuesto);
 
-		return {message: "Presupuesto colocado en activo, satisfactoriamente", data: findingPresupuesto};
+		return { message: "Presupuesto colocado en activo, satisfactoriamente", data: findingPresupuesto };
 	}
 
 	// -------------------------- LOGS CREATOR -----------------------------------
 
-	createLog(type, data, author){
+	createLog(type, data, author) {
 		return {
 			date: new Date()
 		}
 	}
 
-	logsSetDay(data){
+	logsSetDay(data) {
 
 	}
 
@@ -2232,19 +2235,19 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 
 	// OBTENER PARAMETROS DE LOS ROLES
 	// OPTIMIZADA
-	getInfoPerms(role){
+	getInfoPerms(role) {
 		// let data = this.db.getData('/data/simple/roles');
 		let findingRole = this.db.initData(`/data/simple/roles/${role}`);
-		if(!findingRole) return null;
+		if (!findingRole) return null;
 
 		return findingRole;
 	}
 
 	// VALIDAR SI TIENE EL PERMISO NECESARIO PARA LA ACCIÓN DESEADA
 	// optimizada
-	validatePerms(token, perm){
+	validatePerms(token, perm) {
 		let user = this.getUserToken(token);
-		if(!user.data) return null;
+		if (!user.data) return null;
 
 		let data_role = user.data.role;
 
@@ -2258,158 +2261,158 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 	// PROCESAR PROVEEDOR
 	// optimizada
 	procesarProveedor(archivo) {
-	  const data = archivo;
+		const data = archivo;
 
 
-	  const factura = data['Invoice'];
+		const factura = data['Invoice'];
 
-	  // 1️⃣ CUFE
-	  const cufe = factura['cbc:UUID']['_']?factura['cbc:UUID']['_']:factura['cbc:UUID'];
+		// 1️⃣ CUFE
+		const cufe = factura['cbc:UUID']['_'] ? factura['cbc:UUID']['_'] : factura['cbc:UUID'];
 
-	  // 2️⃣ Número de factura
-	  const numeroFactura = factura['cbc:ID'];
+		// 2️⃣ Número de factura
+		const numeroFactura = factura['cbc:ID'];
 
-	  // 3️⃣ Datos del vendedor
-	  const proveedor = factura['cac:AccountingSupplierParty']['cac:Party'];
-	  const nombreProveedor = proveedor['cac:PartyName']['cbc:Name'];
+		// 3️⃣ Datos del vendedor
+		const proveedor = factura['cac:AccountingSupplierParty']['cac:Party'];
+		const nombreProveedor = proveedor['cac:PartyName']['cbc:Name'];
 
-	  const partyTaxScheme = proveedor['cac:PartyTaxScheme'];
+		const partyTaxScheme = proveedor['cac:PartyTaxScheme'];
 		const partyLegalEntity = proveedor['cac:PartyLegalEntity'];
 
 		let nitProveedor = '';
 
 		if (partyTaxScheme && partyTaxScheme['cbc:CompanyID']) {
-		  nitProveedor = typeof partyTaxScheme['cbc:CompanyID'] === 'object'
-		    ? partyTaxScheme['cbc:CompanyID']['_']
-		    : partyTaxScheme['cbc:CompanyID'];
+			nitProveedor = typeof partyTaxScheme['cbc:CompanyID'] === 'object'
+				? partyTaxScheme['cbc:CompanyID']['_']
+				: partyTaxScheme['cbc:CompanyID'];
 		} else if (partyLegalEntity && partyLegalEntity['cbc:CompanyID']) {
-		  nitProveedor = typeof partyLegalEntity['cbc:CompanyID'] === 'object'
-		    ? partyLegalEntity['cbc:CompanyID']['_']
-		    : partyLegalEntity['cbc:CompanyID'];
+			nitProveedor = typeof partyLegalEntity['cbc:CompanyID'] === 'object'
+				? partyLegalEntity['cbc:CompanyID']['_']
+				: partyLegalEntity['cbc:CompanyID'];
 		} else {
-		  throw new Error(`❌ No se encontró NIT del proveedor en PartyTaxScheme ni PartyLegalEntity.`);
+			throw new Error(`❌ No se encontró NIT del proveedor en PartyTaxScheme ni PartyLegalEntity.`);
 		}
-	  // 4️⃣ Total a pagar
-	  const totalFactura = factura['cac:LegalMonetaryTotal']['cbc:PayableAmount'];
+		// 4️⃣ Total a pagar
+		const totalFactura = factura['cac:LegalMonetaryTotal']['cbc:PayableAmount'];
 
-	  // 5️⃣ Productos y cantidades
-	  const lineas = Array.isArray(factura['cac:InvoiceLine'])
-	    ? factura['cac:InvoiceLine']
-	    : [factura['cac:InvoiceLine']];
+		// 5️⃣ Productos y cantidades
+		const lineas = Array.isArray(factura['cac:InvoiceLine'])
+			? factura['cac:InvoiceLine']
+			: [factura['cac:InvoiceLine']];
 
-	  const productos = lineas.map(linea => ({
-	    descripcion: linea['cac:Item']['cbc:Description'].trim(),
-	    cantidad: parseFloat(linea['cbc:InvoicedQuantity']),
-	    unidad: linea['cbc:InvoicedQuantity'].$.unitCode,
-	    precioUnitario: parseFloat(linea['cac:Price']['cbc:PriceAmount']),
-	    valorLinea: parseFloat(linea['cbc:LineExtensionAmount'])
-	  }));
+		const productos = lineas.map(linea => ({
+			descripcion: linea['cac:Item']['cbc:Description'].trim(),
+			cantidad: parseFloat(linea['cbc:InvoicedQuantity']),
+			unidad: linea['cbc:InvoicedQuantity'].$.unitCode,
+			precioUnitario: parseFloat(linea['cac:Price']['cbc:PriceAmount']),
+			valorLinea: parseFloat(linea['cbc:LineExtensionAmount'])
+		}));
 
-	  return {
-	    cufe,
-	    numeroFactura,
-	    proveedor: {
-	      nombre: nombreProveedor,
-	      nit: nitProveedor
-	    },
-	    totalFactura,
-	    productos
-	  };
+		return {
+			cufe,
+			numeroFactura,
+			proveedor: {
+				nombre: nombreProveedor,
+				nit: nitProveedor
+			},
+			totalFactura,
+			productos
+		};
 	}
 
 
 	// PROCESAMIENTO DE FACTURAS
 	// optimizada
 	async procesarFactura(rutaArchivo, archivo) {
-	  const xml = rutaArchivo?fs.readFileSync(rutaArchivo, 'utf8'):archivo;
-	  const parser = new xml2js.Parser({ explicitArray: false });
-	  const data = await parser.parseStringPromise(xml);
+		const xml = rutaArchivo ? fs.readFileSync(rutaArchivo, 'utf8') : archivo;
+		const parser = new xml2js.Parser({ explicitArray: false });
+		const data = await parser.parseStringPromise(xml);
 
 
-	  // PROCESANDO AL PROVEEDOR
-	  const processingProveedor = this.procesarProveedor(data);
+		// PROCESANDO AL PROVEEDOR
+		const processingProveedor = this.procesarProveedor(data);
 
-	 	let gettingProveedor = this.db.initData(`/data/simple/proveedores/${processingProveedor.proveedor.nit}`);
+		let gettingProveedor = this.db.initData(`/data/simple/proveedores/${processingProveedor.proveedor.nit}`);
 
-	 	if(!gettingProveedor) {
-	 		this.db.setData(`/data/simple/proveedores/${processingProveedor.proveedor.nit}`, {
-	 			...processingProveedor.proveedor,
-	 			totalFacturado: parseFloat(processingProveedor.totalFactura),
-	 			facturas: [{cufe: processingProveedor.cufe, numeroFactura: processingProveedor.numeroFactura}],
-	 			ultimaFactura: parseFloat(processingProveedor.totalFactura),
-	 			deudaActual: parseFloat(processingProveedor.totalFactura)
-	 		});
-	 	}else {
-	 		gettingProveedor.totalFacturado = parseFloat(gettingProveedor.totalFacturado) + parseFloat(processingProveedor.totalFactura);
-	 		gettingProveedor.ultimaFactura = parseFloat(processingProveedor.totalFactura);
+		if (!gettingProveedor) {
+			this.db.setData(`/data/simple/proveedores/${processingProveedor.proveedor.nit}`, {
+				...processingProveedor.proveedor,
+				totalFacturado: parseFloat(processingProveedor.totalFactura),
+				facturas: [{ cufe: processingProveedor.cufe, numeroFactura: processingProveedor.numeroFactura }],
+				ultimaFactura: parseFloat(processingProveedor.totalFactura),
+				deudaActual: parseFloat(processingProveedor.totalFactura)
+			});
+		} else {
+			gettingProveedor.totalFacturado = parseFloat(gettingProveedor.totalFacturado) + parseFloat(processingProveedor.totalFactura);
+			gettingProveedor.ultimaFactura = parseFloat(processingProveedor.totalFactura);
 
-	 		gettingProveedor.facturas = converterArray(gettingProveedor.facturas).push({cufe: processingProveedor.cufe, numeroFactura: processingProveedor.numeroFactura});
+			gettingProveedor.facturas = converterArray(gettingProveedor.facturas).push({ cufe: processingProveedor.cufe, numeroFactura: processingProveedor.numeroFactura });
 
-	 		gettingProveedor.deudaActual += parseFloat(processingProveedor.totalFactura);
+			gettingProveedor.deudaActual += parseFloat(processingProveedor.totalFactura);
 
-	 		this.db.setData(`/data/simple/proveedores/${gettingProveedor.nit}`, gettingProveedor);
-	 	}
-	 	// FINALIZA EL PROCESAMIENTO DEL PROVEEDOR
+			this.db.setData(`/data/simple/proveedores/${gettingProveedor.nit}`, gettingProveedor);
+		}
+		// FINALIZA EL PROCESAMIENTO DEL PROVEEDOR
 
-	 	// SE GUARDA LA FACTURA PARA FUTURAS OPCIONES.
-	 	this.db.setData(`/data/simple/facturas/${processingProveedor.cufe}`, processingProveedor);
+		// SE GUARDA LA FACTURA PARA FUTURAS OPCIONES.
+		this.db.setData(`/data/simple/facturas/${processingProveedor.cufe}`, processingProveedor);
 
-	  const factura = data['Invoice'];
-	  const lineas = Array.isArray(factura['cac:InvoiceLine']) ? factura['cac:InvoiceLine'] : [factura['cac:InvoiceLine']];
+		const factura = data['Invoice'];
+		const lineas = Array.isArray(factura['cac:InvoiceLine']) ? factura['cac:InvoiceLine'] : [factura['cac:InvoiceLine']];
 
-	  let finalLogs = [];
+		let finalLogs = [];
 
-	  for (const linea of lineas) {
-		  const item = linea['cac:Item'] || {};
-		  const standardIdObj = item['cac:StandardItemIdentification']?.['cbc:ID'];
-		  let standardId = '';
+		for (const linea of lineas) {
+			const item = linea['cac:Item'] || {};
+			const standardIdObj = item['cac:StandardItemIdentification']?.['cbc:ID'];
+			let standardId = '';
 
-		  if (typeof standardIdObj === 'object') {
-		    standardId = standardIdObj._;
-		  } else if (typeof standardIdObj === 'string') {
-		    standardId = standardIdObj;
-		  }
+			if (typeof standardIdObj === 'object') {
+				standardId = standardIdObj._;
+			} else if (typeof standardIdObj === 'string') {
+				standardId = standardIdObj;
+			}
 
-		  let id = '';
-		  if (standardId && standardId !== '999') {
-		    id = standardId;
-		  } else {
-		    // fallback al SellersItemIdentification si el Standard ID es 999 o no existe
-		    const sellersIdObj = item['cac:SellersItemIdentification']?.['cbc:ID'];
-		    if (typeof sellersIdObj === 'object') {
-		      id = sellersIdObj._;
-		    } else if (typeof sellersIdObj === 'string') {
-		      id = sellersIdObj;
-		    } else {
-		      throw new Error(`No se pudo encontrar un ID válido para una línea de producto.`);
-		    }
-		  }
+			let id = '';
+			if (standardId && standardId !== '999') {
+				id = standardId;
+			} else {
+				// fallback al SellersItemIdentification si el Standard ID es 999 o no existe
+				const sellersIdObj = item['cac:SellersItemIdentification']?.['cbc:ID'];
+				if (typeof sellersIdObj === 'object') {
+					id = sellersIdObj._;
+				} else if (typeof sellersIdObj === 'string') {
+					id = sellersIdObj;
+				} else {
+					throw new Error(`No se pudo encontrar un ID válido para una línea de producto.`);
+				}
+			}
 
-		  // El resto de tu lógica aquí...
+			// El resto de tu lógica aquí...
 
-		  const nombre = linea['cac:Item']['cbc:Description'].trim();
+			const nombre = linea['cac:Item']['cbc:Description'].trim();
 
-	    const cantidadRaw = linea['cbc:InvoicedQuantity'];
+			const cantidadRaw = linea['cbc:InvoicedQuantity'];
 			const cantidad = parseFloat(cantidadRaw._ || cantidadRaw);
-	    const subtotal = parseFloat(linea['cbc:LineExtensionAmount']._);
-	    const impuesto = parseFloat(linea['cac:TaxTotal']?.['cbc:TaxAmount']._ || 0);
-	    const totalLinea = subtotal + impuesto;
-	    const precioUnidad = totalLinea / cantidad;
+			const subtotal = parseFloat(linea['cbc:LineExtensionAmount']._);
+			const impuesto = parseFloat(linea['cac:TaxTotal']?.['cbc:TaxAmount']._ || 0);
+			const totalLinea = subtotal + impuesto;
+			const precioUnidad = totalLinea / cantidad;
 
-	    const ruta = `/data/simple/products/${id}`;
+			const ruta = `/data/simple/products/${id}`;
 
-	    // OBTENIENDO PRODUCTO
-	    const productoActual = this.db.initData(ruta);
+			// OBTENIENDO PRODUCTO
+			const productoActual = this.db.initData(ruta);
 
-	    if (!productoActual || !productoActual.id) {
-	      // Si no existe el producto, se guarda por primera vez
-	      this.db.setData(ruta, {
-	        name: nombre,
-	        costo_adquisitivo: parseFloat(precioUnidad),
-	        fechaCreación: new Date()-0,
-	        id_personalizado: id,
-	        id: id,
-	        price: data.price,
+			if (!productoActual || !productoActual.id) {
+				// Si no existe el producto, se guarda por primera vez
+				this.db.setData(ruta, {
+					name: nombre,
+					costo_adquisitivo: parseFloat(precioUnidad),
+					fechaCreación: new Date() - 0,
+					id_personalizado: id,
+					id: id,
+					price: data.price,
 					price_mayor: data.price_mayor,
 					stock: (data.stock + cantidad),
 					nanoid: generarToken(new Date()),
@@ -2418,39 +2421,39 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 					materia_prima: "true", // ESTO ES PARA PODER MARCAR EL PESO Y OTROS DATOS. 
 					visible: "false",
 					pesaje: 0
-	      });
-	      finalLogs.push(`🆕 Producto nuevo guardado: ${id} - ${nombre}`);
-	    } else {
-	      // Si el precio es mayor, se actualiza
+				});
+				finalLogs.push(`🆕 Producto nuevo guardado: ${id} - ${nombre}`);
+			} else {
+				// Si el precio es mayor, se actualiza
 
-	    	productoActual.stock = (Number(productoActual.stock?productoActual.stock:0) + Number(cantidad));
-	    	productoActual.costo_adquisitivo = parseFloat(limpiarCantidad(precioUnidad));
-	      this.db.setData(ruta, productoActual);
+				productoActual.stock = (Number(productoActual.stock ? productoActual.stock : 0) + Number(cantidad));
+				productoActual.costo_adquisitivo = parseFloat(limpiarCantidad(precioUnidad));
+				this.db.setData(ruta, productoActual);
 
-	      finalLogs.push(`⬆️ Precio actualizado #${id}: ${productoActual.precioUnidadConImpuestos} → ${precioUnidad.toFixed(2)} - ${nombre}`)
-	    }
+				finalLogs.push(`⬆️ Precio actualizado #${id}: ${productoActual.precioUnidadConImpuestos} → ${precioUnidad.toFixed(2)} - ${nombre}`)
+			}
 		}
 
-	  if(finalLogs[0]){
-	  	await whatsapp(`
+		if (finalLogs[0]) {
+			await whatsapp(`
 		  	*CAMBIOS EN LAS MATERIAS PRIMAS*
 		  	${finalLogs.map(ch => ch).join('\n')}
 		  `);
-	  }
+		}
 
-	  this.db.setData(`/data/simple/bodega/logs`, finalLogs);
+		this.db.setData(`/data/simple/bodega/logs`, finalLogs);
 	}
 
 	// OPTIMIZADA
 	async procesarTodas(rutas) {
-	  for (const ruta of rutas) {
-	    try {
-	      await this.procesarFactura(ruta);
-	      console.log(`📄 Procesada factura: ${ruta}`);
-	    } catch (err) {
-	      console.error(`❌ Error en ${ruta}:`, err.message);
-	    }
-	  }
+		for (const ruta of rutas) {
+			try {
+				await this.procesarFactura(ruta);
+				console.log(`📄 Procesada factura: ${ruta}`);
+			} catch (err) {
+				console.error(`❌ Error en ${ruta}:`, err.message);
+			}
+		}
 	}
 
 
@@ -2458,13 +2461,13 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 
 
 	// optimizada
-	inventariado(data = [], token){
+	inventariado(data = [], token) {
 		let finalMovement = this.createMovement(data, token);
 
-		if(!finalMovement.data) return {message: "No se pudo generar la salida de inventario debido a que el token no parece ser correcto o algun producto de la lista ya fue eliminado por otro usuario en este momento."};
+		if (!finalMovement.data) return { message: "No se pudo generar la salida de inventario debido a que el token no parece ser correcto o algun producto de la lista ya fue eliminado por otro usuario en este momento." };
 
 		const productos = finalMovement.data.products.map(p => 
-		  `- ${p.name} | Cantidad: ${p.cantidad} | Precio unitario: $${formatNumber(p.precio_final)}`
+			`- ${p.name} | Cantidad: ${p.cantidad} | Precio unitario: $${formatNumber(p.precio_final)}`
 		).join('\n');
 
 		const mensaje = `
@@ -2485,10 +2488,10 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 
 
 	// optimizada
-	generarFacturaCredito(data = [], token){
+	generarFacturaCredito(data = [], token) {
 		let finalMovement = this.createMovement(data, token);
 
-		if(!finalMovement.data) return {message: "No se pudo generar el movimiento ni la factura de inventario."};
+		if (!finalMovement.data) return { message: "No se pudo generar el movimiento ni la factura de inventario." };
 
 		let movementMoney = this.removeToGeneral({
 			desc: `Factura pagada de credito: ${generarToken(new Date())}`,
@@ -2498,7 +2501,7 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 		const fecha = new Date().toLocaleString('es-CO');
 
 		const productos = finalMovement.data.products.map(p => 
-		  `- ${p.name} | Cantidad: ${p.cantidad} | Precio unitario: $${formatNumber(p.precio_final)}`
+			`- ${p.name} | Cantidad: ${p.cantidad} | Precio unitario: $${formatNumber(p.precio_final)}`
 		).join('\n');
 
 		const mensaje = `
@@ -2519,183 +2522,183 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 		return finalMovement;
 	}
 
-	getMovements(token){
+	getMovements(token) {
 		let validateUser = this.validatingUseringToken(token);
 
-		if(!validateUser.data) return {message: "Token fallido"};
+		if (!validateUser.data) return { message: "Token fallido" };
 
 		let movements = this.db.getLastNMovements('/data/simple/movimientos', 30);
 
-		return {message: "Informacion descargada satisfactoriamente", data: movements};
+		return { message: "Informacion descargada satisfactoriamente", data: movements };
 	}
 
 	// OPTIMIZADA
 	createMovement(ventas = [], token) {
-	  if (!ventas[0]) return { message: "Añade productos para el movimiento en bodega." };
+		if (!ventas[0]) return { message: "Añade productos para el movimiento en bodega." };
 
-	  let validateUser = this.validatingUseringToken(token);
-	  if (!validateUser.data) return { message: "Token fallido" };
+		let validateUser = this.validatingUseringToken(token);
+		if (!validateUser.data) return { message: "Token fallido" };
 
-	  let products = this.db.getData('/data/simple/products', ['log']);
-	  let ids = this.db.getData('/data/simple/id');
+		let products = this.db.getData('/data/simple/products', ['log']);
+		let ids = this.db.getData('/data/simple/id');
 
-	  let final_data = [];
-	  let products_dont = [];
-	  let final_count = 0;
+		let final_data = [];
+		let products_dont = [];
+		let final_count = 0;
 
-	  ventas.forEach((element) => {
-	    let findingProduct = products[element.id];
-	    if (!findingProduct) return products_dont.push(element.id);
+		ventas.forEach((element) => {
+			let findingProduct = products[element.id];
+			if (!findingProduct) return products_dont.push(element.id);
 
-	    let cantidadSolicitada = Number(element.cantidad);
+			let cantidadSolicitada = Number(element.cantidad);
 
-	    if (findingProduct.stock != null) {
-	      findingProduct.stock = Number(findingProduct.stock?findingProduct.stock:0) + Number(cantidadSolicitada);
-	    }
+			if (findingProduct.stock != null) {
+				findingProduct.stock = Number(findingProduct.stock ? findingProduct.stock : 0) + Number(cantidadSolicitada);
+			}
 
-	    findingProduct.costo_adquisitivo = findingProduct.costo_adquisitivo ?? element.price;
+			findingProduct.costo_adquisitivo = findingProduct.costo_adquisitivo ?? element.price;
 
-	    // ✅ Aquí ya NO guardas todo: solo marcas para guardar luego
-	    // Solo actualiza en memoria
-	    products[findingProduct.id] = findingProduct;
+			// ✅ Aquí ya NO guardas todo: solo marcas para guardar luego
+			// Solo actualiza en memoria
+			products[findingProduct.id] = findingProduct;
 
-	    let final_product = {
-	      id: element.id,
-	      precio_unitario: element.price ?? findingProduct.costo_adquisitivo,
-	      cantidad: cantidadSolicitada,
-	      name: findingProduct.name,
-	      costo_adquisitivo: findingProduct.costo_adquisitivo
-	    };
+			let final_product = {
+				id: element.id,
+				precio_unitario: element.price ?? findingProduct.costo_adquisitivo,
+				cantidad: cantidadSolicitada,
+				name: findingProduct.name,
+				costo_adquisitivo: findingProduct.costo_adquisitivo
+			};
 
-	    final_product.precio_final = final_product.precio_unitario * final_product.cantidad;
+			final_product.precio_final = final_product.precio_unitario * final_product.cantidad;
 
-	    final_data.push(final_product);
-	    final_count += final_product.precio_final;
-	  });
+			final_data.push(final_product);
+			final_count += final_product.precio_final;
+		});
 
-	  let final_venta = {
-	    products: final_data,
-	    productsNone: products_dont,
-	    total_pago: final_count,
-	    id: ids.ventas,
-	    date: Date.now(),
-	    movimientoHechoPor: token || "Cajero Común",
-	  };
+		let final_venta = {
+			products: final_data,
+			productsNone: products_dont,
+			total_pago: final_count,
+			id: ids.ventas,
+			date: Date.now(),
+			movimientoHechoPor: token || "Cajero Común",
+		};
 
-	  // ✅ Guarda solo los productos modificados (uno por uno)
-	  final_data.forEach(prod => {
-	    const productoActualizado = products[prod.id];
-	    this.db.setData(`/data/simple/products/${productoActualizado.id}`, productoActualizado);
-	  });
+		// ✅ Guarda solo los productos modificados (uno por uno)
+		final_data.forEach(prod => {
+			const productoActualizado = products[prod.id];
+			this.db.setData(`/data/simple/products/${productoActualizado.id}`, productoActualizado);
+		});
 
-	  // ✅ Actualiza IDs globales
-	  this.db.setData('/data/simple/id', ids);
+		// ✅ Actualiza IDs globales
+		this.db.setData('/data/simple/id', ids);
 
-	  // ✅ Guarda movimiento
-	  const movimientoId = generarToken(new Date());
-	  const movimiento = {
-	    idMovimiento: movimientoId,
-	    tipo: "facturacion-bodega",
-	    fecha: new Date().toISOString(),
-	    responsable: validateUser.data.data.user || 'desconocido',
-	    descripcion: `Movimientos de la bodega, pagos de facturas creditas y salidas de bodega.`,
-	    items: final_venta.products.map(ch => ({
-	      productoId: ch.id,
-	      nombre: ch.name,
-	      cantidad: ch.cantidad,
-	      precioUnitario: ch.precio_unitario,
-	      total: ch.precio_final
-	    }))
-	  };
+		// ✅ Guarda movimiento
+		const movimientoId = generarToken(new Date());
+		const movimiento = {
+			idMovimiento: movimientoId,
+			tipo: "facturacion-bodega",
+			fecha: new Date().toISOString(),
+			responsable: validateUser.data.data.user || 'desconocido',
+			descripcion: `Movimientos de la bodega, pagos de facturas creditas y salidas de bodega.`,
+			items: final_venta.products.map(ch => ({
+				productoId: ch.id,
+				nombre: ch.name,
+				cantidad: ch.cantidad,
+				precioUnitario: ch.precio_unitario,
+				total: ch.precio_final
+			}))
+		};
 
-	  this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
+		this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
 
-	  return { message: "Facturación bodega satisfactoriamente", data: final_venta };
+		return { message: "Facturación bodega satisfactoriamente", data: final_venta };
 	};
 
 	// OPTIMIZADA
 	correctorInventory(ventas = [], token) {
-	  let validateUser = this.validatingUseringToken(token);
+		let validateUser = this.validatingUseringToken(token);
 
-	  if (!validateUser.data) return { message: "Token Fallido" };
+		if (!validateUser.data) return { message: "Token Fallido" };
 
-	  let products = this.db.getData('/data/simple/products', ['log']);
-	  let ids = this.db.getData('/data/simple/id');
+		let products = this.db.getData('/data/simple/products', ['log']);
+		let ids = this.db.getData('/data/simple/id');
 
-	  let final_data = [];
-	  let products_dont = [];
-	  let final_count = 0;
+		let final_data = [];
+		let products_dont = [];
+		let final_count = 0;
 
-	  ventas.forEach((element) => {
-	    let findingProduct = products[element.id];
-	    if (!findingProduct) return products_dont.push(element.id);
+		ventas.forEach((element) => {
+			let findingProduct = products[element.id];
+			if (!findingProduct) return products_dont.push(element.id);
 
-	    let cantidadSolicitada = Number(element.cantidad);
+			let cantidadSolicitada = Number(element.cantidad);
 
-	    findingProduct.stock = cantidadSolicitada;
+			findingProduct.stock = cantidadSolicitada;
 
-	    findingProduct.costo_adquisitivo = element.price ?? findingProduct.costo_adquisitivo;
+			findingProduct.costo_adquisitivo = element.price ?? findingProduct.costo_adquisitivo;
 
-	    products[findingProduct.id] = findingProduct;
+			products[findingProduct.id] = findingProduct;
 
-	    let final_product = {
-	      id: element.id,
-	      precio_unitario: element.price ?? findingProduct.costo_adquisitivo,
-	      cantidad: cantidadSolicitada,
-	      name: findingProduct.name,
-	      costo_adquisitivo: findingProduct.costo_adquisitivo
-	    };
+			let final_product = {
+				id: element.id,
+				precio_unitario: element.price ?? findingProduct.costo_adquisitivo,
+				cantidad: cantidadSolicitada,
+				name: findingProduct.name,
+				costo_adquisitivo: findingProduct.costo_adquisitivo
+			};
 
-	    final_product.precio_final = final_product.precio_unitario * final_product.cantidad;
+			final_product.precio_final = final_product.precio_unitario * final_product.cantidad;
 
-	    final_data.push(final_product);
-	    final_count += final_product.precio_final;
-	  });
+			final_data.push(final_product);
+			final_count += final_product.precio_final;
+		});
 
-	  let final_venta = {
-	    products: final_data,
-	    productsNone: products_dont,
-	    total_pago: final_count,
-	    id: ids.ventas,
-	    date: Date.now(),
-	    movimientoHechoPor: token || "Cajero Común",
-	  };
+		let final_venta = {
+			products: final_data,
+			productsNone: products_dont,
+			total_pago: final_count,
+			id: ids.ventas,
+			date: Date.now(),
+			movimientoHechoPor: token || "Cajero Común",
+		};
 
-	  // ✅ GUARDAR SOLO LOS PRODUCTOS MODIFICADOS
-	  final_data.forEach(prod => {
-	    const productoActualizado = products[prod.id];
-	    this.db.setData(`/data/simple/products/${productoActualizado.id}`, productoActualizado);
-	  });
+		// ✅ GUARDAR SOLO LOS PRODUCTOS MODIFICADOS
+		final_data.forEach(prod => {
+			const productoActualizado = products[prod.id];
+			this.db.setData(`/data/simple/products/${productoActualizado.id}`, productoActualizado);
+		});
 
-	  // ✅ ACTUALIZAR IDS
-	  this.db.setData('/data/simple/id', ids);
+		// ✅ ACTUALIZAR IDS
+		this.db.setData('/data/simple/id', ids);
 
-	  // ✅ GUARDAR MOVIMIENTO
-	  const movimientoId = generarToken(new Date());
-	  const movimiento = {
-	    idMovimiento: movimientoId,
-	    tipo: "facturacion-bodega",
-	    fecha: new Date().toISOString(),
-	    responsable: validateUser.data.data.user || 'desconocido',
-	    descripcion: `Bodega actualizada, stocks actualizados.`,
-	    items: final_venta.products.map(ch => ({
-	      productoId: ch.id,
-	      nombre: ch.name,
-	      cantidad: ch.cantidad,
-	      precioUnitario: ch.precio_unitario,
-	      total: ch.precio_final
-	    }))
-	  };
+		// ✅ GUARDAR MOVIMIENTO
+		const movimientoId = generarToken(new Date());
+		const movimiento = {
+			idMovimiento: movimientoId,
+			tipo: "facturacion-bodega",
+			fecha: new Date().toISOString(),
+			responsable: validateUser.data.data.user || 'desconocido',
+			descripcion: `Bodega actualizada, stocks actualizados.`,
+			items: final_venta.products.map(ch => ({
+				productoId: ch.id,
+				nombre: ch.name,
+				cantidad: ch.cantidad,
+				precioUnitario: ch.precio_unitario,
+				total: ch.precio_final
+			}))
+		};
 
-	  this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
+		this.db.setData(`/data/simple/movimientos/${movimientoId}`, movimiento);
 
-	  let finalMovement = { data: final_venta };
+		let finalMovement = { data: final_venta };
 
-	  const productos = finalMovement.data.products.map(p =>
-	    `- ${p.name} | Cantidad: ${p.cantidad} | Precio unitario: $${formatNumber(p.precio_final)}`
-	  ).join('\n');
+		const productos = finalMovement.data.products.map(p =>
+			`- ${p.name} | Cantidad: ${p.cantidad} | Precio unitario: $${formatNumber(p.precio_final)}`
+		).join('\n');
 
-	  const mensaje = `
+		const mensaje = `
 	📦 *ACTUALIZACIÓN DE INVENTARIO*
 	🗓️ Fecha: ${new Date().toLocaleString('es-CO')}
 	🔢 ID Movimiento: ${finalMovement.data.id}
@@ -2706,13 +2709,13 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 	${productos}
 	`;
 
-	  return { message: "Facturación bodega satisfactoriamente", data: final_venta };
+		return { message: "Facturación bodega satisfactoriamente", data: final_venta };
 	}
 
 
 
 	// FUNCIONES OPTIMIZADAS -------------------------------------------------------------
-	viewingStock(){
+	viewingStock() {
 		let products = this.db.getData('/data/simple/products');
 
 		let finalProductsArray = converterArray(products);
@@ -2721,7 +2724,7 @@ ${finalPagos.length > 0 ? finalPagos.map((pago, i) =>
 
 
 		finalProductsArray.forEach((element, i, array) => {
-			if(element.stock < 4){
+			if (element.stock < 4) {
 				productsToAlert.push(element);
 			}
 		})
