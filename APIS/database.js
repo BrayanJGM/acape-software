@@ -1859,7 +1859,6 @@ class Database {
 		let clientes = this.db.getData('/data/simple/clientes');
 		let products = this.db.getData('/data/simple/products', ['log']);
 
-		// Índice por nombre en minúsculas
 		let productosPorNombre = {};
 		converterArray(products).forEach(producto => {
 			if (producto && producto.name != null) {
@@ -1868,26 +1867,22 @@ class Database {
 		});
 
 		let ventas = {};
-		let contadorVenta = 1;
+		let contadorGlobal = 1;
 
 		converterArray(clientes).forEach(cliente => {
 			if (!cliente) return;
 
-			// IMPORTANTE: Se usa {} como fallback y converterArray para convertir
-			// el objeto/array de compras en una lista recorrible.
+			// Leemos las compras del cliente soportando array u objeto
 			let comprasCliente = converterArray(cliente.compras || {});
 
 			comprasCliente.forEach(compra => {
 				if (!compra) return;
 
-				// Normalizamos la compra a la estructura de venta
 				let ventaNormalizada = this._normalizarCompraAVenta(compra, cliente, productosPorNombre);
 
-				// Determinamos la clave para el objeto 'ventas' del frontend
-				// Si compra.ventaId existe usamos ese, si no, usamos una clave única para no perderla.
-				let key = (compra.ventaId != null && compra.ventaId !== '') 
-					? compra.ventaId 
-					: `${cliente.id}_${compra.fecha || contadorVenta++}`;
+				// CLAVE ÚNICA OBLIGATORIA: Previene que la venta de un cliente
+				// pise la venta con mismo ID de otro cliente en el Excel.
+				let key = `${cliente.id}_${compra.ventaId || contadorGlobal++}`;
 
 				ventas[key] = ventaNormalizada;
 			});
