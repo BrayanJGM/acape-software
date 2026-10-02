@@ -1859,29 +1859,37 @@ class Database {
 		let clientes = this.db.getData('/data/simple/clientes');
 		let products = this.db.getData('/data/simple/products', ['log']);
 
-		// Indice por nombre en minusculas para no depender de como este escrito el
-		// producto en cada compra.
+		// Índice por nombre en minúsculas para asociar costos e IDs
 		let productosPorNombre = {};
 		converterArray(products).forEach(producto => {
-			if (producto && producto.name != null) productosPorNombre[String(producto.name).trim().toLowerCase()] = producto;
+			if (producto && producto.name != null) {
+				productosPorNombre[String(producto.name).trim().toLowerCase()] = producto;
+			}
 		});
 
-		let ventas = {};
+		let ventasMap = new Map();
 
 		converterArray(clientes).forEach(cliente => {
 			if (!cliente) return;
 
 			converterArray(cliente.compras || []).forEach(compra => {
-				if (!compra || compra.ventaId == null) return;
+				if (!compra) return;
 
-				// La misma venta no puede repetirse si quedo registrada en dos fichas.
-				if (ventas[compra.ventaId]) return;
+				// Si compra.ventaId no existe, generas una clave compuesta para no perderla
+				let key = compra.ventaId != null ? String(compra.ventaId) : `${cliente.id}_${compra.fecha}`;
 
-				ventas[compra.ventaId] = this._normalizarCompraAVenta(compra, cliente, productosPorNombre);
+				// Evitamos duplicar solo si la clave ya existe
+				if (ventasMap.has(key)) return;
+
+				ventasMap.set(key, this._normalizarCompraAVenta(compra, cliente, productosPorNombre));
 			});
 		});
 
-		return { message: "Lista de todas las ventas de los clientes", data: ventas };
+		// Convertimos el Map a un Array para responder una lista limpia
+		return { 
+			message: "Lista de todas las ventas de los clientes", 
+			data: Array.from(ventasMap.values()) 
+		};
 	}
 
 	// -------------------------------------------------------------------------------
