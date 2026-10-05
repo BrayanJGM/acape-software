@@ -527,7 +527,8 @@ function sendCreateProduct(e) {
     id_personalizado: e[6].value,
     pesaje: e[7].value,
     max_stock: e[8].value,
-    venta_por_peso: e[9].checked
+    venta_por_peso: e[9].checked,
+    descripcion: e[10] ? e[10].value : ''
   }
   let token = localStorage.getItem('admin-acape-session');
 
@@ -582,7 +583,12 @@ function createProduct() {
         <label>ID Personalizado (opcional)</label>
         <div class="input-group mb-3">
           <span class="input-group-text">#</span>
-          <input type="number" class="form-control d-inline" placeholder="00318293"">
+          <input type="number" class="form-control d-inline" placeholder="00318293">
+        </div>
+
+        <label>Descripción (opcional)</label>
+        <div class="mb-3">
+          <textarea class="form-control" rows="2" placeholder="Descripción del producto (opcional)"></textarea>
         </div>
         <br>
 
@@ -694,7 +700,8 @@ function sendEditProduct(e, id) {
     id: id,
     pesaje: e[7].value,
     max_stock: e[8].value,
-    venta_por_peso: e[9].checked
+    venta_por_peso: e[9].checked,
+    descripcion: e[10] ? e[10].value : ''
   }
 
   console.log(data)
@@ -764,7 +771,12 @@ function editProduct(id) {
           <label>ID Personalizado (opcional)</label>
           <div class="input-group mb-3">
             <span class="input-group-text">#</span>
-            <input type="number" class="form-control value="${info_inputs.id_personalizado}" d-inline" placeholder="00318293"">
+            <input type="number" class="form-control d-inline" value="${info_inputs.id_personalizado || ''}" placeholder="00318293">
+          </div>
+
+          <label>Descripción (opcional)</label>
+          <div class="mb-3">
+            <textarea class="form-control" rows="2" placeholder="Descripción del producto (opcional)">${(info_inputs.descripcion || '')}</textarea>
           </div>
           <br>
 

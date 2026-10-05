@@ -628,6 +628,8 @@ function setListProduct(data, desdePesaje = false) {
     icon: "error"
   });
 
+  findingProduct.descripcion = (findingProduct.descripcion != null && String(findingProduct.descripcion).trim() !== '') ? String(findingProduct.descripcion) : '';
+
   if (esDePeso(findingProduct) && !desdePesaje) {
     abrirPesajePopup(data, 'agregar');
     return;
@@ -1065,36 +1067,75 @@ function normalizarTecla(t) {
   return String(t || '').trim().toLowerCase();
 }
 
-function renderAtajos() {
-  let cont = document.querySelector('.atajos-productos');
-  if (!cont) return;
 
-  let products = JSON.parse(sessionStorage.getItem('products') || "{}");
+
+function agregarFijado(id) {
+  let tile = document.querySelector(".atajo-fijado[onclick*=\"" + id + "\"]");
+  if (tile) {
+    tile.classList.add("atajo-press");
+    setTimeout(() => tile.classList.remove("atajo-press"), 400);
+  }
+  setListProduct(id);
+}
+window.agregarFijado = agregarFijado;
+
+function renderFijados() {
+  let cont = document.querySelector(".atajos-fijados");
+  if (!cont) return;
+  let products = JSON.parse(sessionStorage.getItem("products") || "{}");
+  let fijados = converterArray(products).filter(ch => (String(ch.fijado).toLowerCase() === "true" || ch.fijado == 1 || ch.fijado == "1"));
+  if (!fijados.length) { cont.innerHTML = ""; return; }
+  let unicos = [];
+  let vistos = new Set();
+  fijados.forEach(ch => { if (!vistos.has(ch.id)) { vistos.add(ch.id); unicos.push(ch); } });
+  cont.innerHTML = unicos.map(ch => {
+    let precio = ch.price ? "$" + formatNumber(ch.price) : "Sin precio";
+    let iconoPeso = esDePeso(ch) ? '<i class="fa-solid fa-weight-scale" style="margin-right:4px;font-size:0.8rem;color:#4B5563;"></i>' : "";
+    let desc = "";
+    if (ch.descripcion !== undefined && ch.descripcion !== null) {
+      desc = String(ch.descripcion).trim();
+    }
+    let descHtml = "";
+    if (desc) {
+      descHtml = '<span style="font-size:0.7rem;line-height:1.1;margin-top:2px;color:#666 !important;font-weight:400;white-space:normal;word-break:break-word;">' + desc.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;") + '</span>';
+    }
+    return '<button class="atajo atajo-fijado" style="display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;background:#fff !important;color:#000 !important;font-weight:700;border:1px solid #d1d5db;border-radius:6px;min-height:48px;padding:6px 8px;white-space:normal;word-break:break-word;width:100%;box-shadow:0 1px 2px rgba(0,0,0,0.05);" onclick="window.agregarFijado(\'' + ch.id + '\')"><span style="font-size:0.85rem;line-height:1.1;color:#000 !important;font-weight:800;">' + (ch.name || "") + '</span>' + descHtml + '<div style="display:flex;align-items:center;margin-top:2px;font-size:0.8rem;color:#16a34a !important;font-weight:700;">' + iconoPeso + '<span>' + precio + '</span></div></button>';
+  }).join("");
+}
+
+
+
+function renderAtajos() {
+  let cont = document.querySelector(".atajos-productos");
+  if (!cont) return;
+  let products = JSON.parse(sessionStorage.getItem("products") || "{}");
   let porTecla = {};
   converterArray(products).forEach(ch => {
     let tk = normalizarTecla(ch.tecla);
     if (!tk || !ch) return;
     if (!porTecla[tk] || Number(ch.id) < Number(porTecla[tk].id)) porTecla[tk] = ch;
   });
-
   let atajos = Object.keys(porTecla).sort().map(tk => porTecla[tk]);
-
   if (!atajos.length) {
-    cont.innerHTML = `<p class="small text-muted text-center">Para vender rápido, asigna teclas a tus productos (ficha del producto → “Tecla de acceso rápido”). También puedes usar el buscador.</p>`;
+    cont.innerHTML = '<p class="small text-muted text-center">Para vender rápido, asigna teclas a tus productos (ficha del producto → “Tecla de acceso rápido”). También puedes usar el buscador.</p>';
+    renderFijados();
     return;
   }
-
   cont.innerHTML = atajos.map(ch => {
     let precio = ch.price ? formatNumber(ch.price) : "?";
     let icono = esDePeso(ch) ? '<i class="fa-solid fa-weight-scale" title="Por peso"></i> ' : "";
-    return `
-      <button class="atajo" data-tecla="${ch.tecla}" onclick="agregarPorTecla('${ch.id}')" title="${ch.name}">
-        <span class="atajo-tecla">${ch.tecla.toUpperCase()}</span>
-        <span class="atajo-nombre">${ch.name}</span>
-        <span class="atajo-precio">${icono}${precio}</span>
-      </button>`;
-  }).join('');
+    let desc = "";
+    if (ch.descripcion !== undefined && ch.descripcion !== null) {
+      desc = String(ch.descripcion).trim();
+    }
+    let descHtml = "";
+    if (desc) {
+      descHtml = '<span style="font-size:0.7rem;line-height:1.1;margin-top:2px;color:#555 !important;font-weight:400;white-space:normal;word-break:break-word;">' + desc.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;") + '</span>';
+    }
+    return '<button class="atajo" data-tecla="' + ch.tecla + '" onclick="agregarPorTecla(\'' + ch.id + '\')" style="background:#fff !important;color:#111 !important;font-weight:700;border:1px solid #e5e5e5;min-height:48px;padding:4px 6px;white-space:normal;word-break:break-word;line-height:1.05;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;text-align:left;"><span style="font-size:0.85rem;line-height:1.05;color:#111 !important;">' + (ch.name || "") + '</span>' + descHtml + '<span style="font-size:0.8rem;margin-top:1px;color:#111 !important;">' + icono + precio + '</span></button>';
+  }).join("");
 }
+
 
 function agregarPorTecla(id, tecla) {
   let products = JSON.parse(sessionStorage.getItem('products') || "{}");
@@ -1433,7 +1474,7 @@ function listingEntrada() {
 function limpiarListadoVenta() {
   sessionStorage.removeItem('actually-list-products');
   listingProducts();
-  renderAtajos();
+  renderFijados();
   enfocarBuscador();
   let buscando = document.querySelector('.searching');
   if (buscando) buscando.innerHTML = '';
@@ -2045,7 +2086,7 @@ router.get(['/', '', '/app'], () => {
       sessionStorage.setItem('products', JSON.stringify(data.data));
       sessionStorage.setItem('methods', JSON.stringify(data.methods))
       listingProducts()
-      renderAtajos()
+      renderFijados()
       enfocarBuscador()
     })
 
@@ -2061,7 +2102,11 @@ router.get(['/', '', '/app'], () => {
         <a class="btn btn-outline-success" href="/" target="_blank"><i class="fa-solid fa-plus"></i> Nuevo Espacio</a>
       </div>
       <br>
-      <div class="atajos-productos mb-3"></div>
+      <div class="mb-2">
+        <small class="text-muted d-block mb-1">Botones fijados (clic)</small>
+        <div class="atajos-fijados"></div>
+      </div>
+
       <br>
       <form class="productListening">
         <div class="input-group mb-3">
@@ -2129,8 +2174,10 @@ function sendEditProduct(e, id) {
     stock: removeCommaSeparators(e[4].value),
     costo_adquisitivo: removeCommaSeparators(e[5].value),
     id_personalizado: removeCommaSeparators(e[6].value),
-    venta_por_peso: e[7].checked,
-    tecla: e[8] ? e[8].value : '',
+    descripcion: e[7] ? e[7].value : '',
+    fijado: e[8] ? e[8].checked : false,
+    venta_por_peso: e[9] ? e[9].checked : false,
+    tecla: e[10] ? e[10].value : '',
     id: id
   }
 
@@ -2198,7 +2245,20 @@ function editProduct(id) {
           <label>ID Personalizado (opcional)</label>
           <div class="input-group mb-3">
             <span class="input-group-text">#</span>
-            <input type="number" class="form-control value="${info_inputs.id_personalizado}" d-inline" placeholder="00318293"">
+            <input type="number" class="form-control d-inline" value="${info_inputs.id_personalizado || ''}" placeholder="00318293">
+          </div>
+
+          <label>Descripción (opcional)</label>
+          <div class="mb-3">
+            <textarea class="form-control" rows="2" placeholder="Descripción del producto (opcional)">${(info_inputs.descripcion || '')}</textarea>
+          </div>
+
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="editFijado" ${(String(info_inputs.fijado).toLowerCase() === "true" || info_inputs.fijado == 1 || info_inputs.fijado == "1") ? "checked" : ""}>
+            <label class="form-check-label" for="editFijado">
+              <i class="fa-solid fa-thumbtack"></i> Fijar en pantalla principal
+            </label>
+            <p class="text-muted small">Aparecerá como botón fijo en la pantalla de facturación para agregarlo con un solo clic.</p>
           </div>
 
           <div class="form-check mb-3">
@@ -2235,9 +2295,13 @@ function getProducts() {
 
     let final_products = converterArray(data.data);
 
-    sessionStorage.setItem('products', JSON.stringify(data.data))
+    // normalize fijado
+    let normalized = converterArray(data.data).map(p => { if (p.fijado === undefined || p.fijado === null) p.fijado = "false"; else { let v = String(p.fijado).toLowerCase(); p.fijado = (v === "true" || v === "1"); } return p; })
+    sessionStorage.setItem('products', JSON.stringify(normalized))
 
-    finalDetergente(final_products)
+    finalDetergente(normalized)
+    renderFijados();
+    renderFijados();
   })
 }
 
@@ -2250,8 +2314,10 @@ function sendCreateProduct(e) {
     stock: removeCommaSeparators(e[4].value),
     costo_adquisitivo: removeCommaSeparators(e[5].value),
     id_personalizado: e[6].value,
-    venta_por_peso: e[7].checked,
-    tecla: e[8] ? e[8].value : ''
+    descripcion: e[7] ? e[7].value : '',
+    fijado: e[8] ? e[8].checked : false,
+    venta_por_peso: e[9] ? e[9].checked : false,
+    tecla: e[10] ? e[10].value : ''
   }
   let token = sessionStorage.getItem('acape-session');
 
@@ -2304,7 +2370,20 @@ function createProduct() {
           <label>ID Personalizado (opcional)</label>
           <div class="input-group mb-3">
             <span class="input-group-text">#</span>
-            <input type="number" class="form-control d-inline" placeholder="00318293"">
+            <input type="number" class="form-control d-inline" placeholder="00318293">
+          </div>
+
+          <label>Descripción (opcional)</label>
+          <div class="mb-3">
+            <textarea class="form-control" rows="2" placeholder="Descripción del producto (opcional)"></textarea>
+          </div>
+
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="fijadoProducto">
+            <label class="form-check-label" for="fijadoProducto">
+              <i class="fa-solid fa-thumbtack"></i> Fijar en pantalla principal
+            </label>
+            <p class="text-muted small">Aparecerá como botón fijo en la pantalla de facturación para agregarlo con un solo clic.</p>
           </div>
 
           <div class="form-check mb-3">
@@ -3264,20 +3343,20 @@ function editarCliente(id) {
           <label>Numero de telefono (Colombiano)</label>
           <div class="input-group mb-3">
             <span class="input-group-text">+57</span>
-            <input type="number" value="${cliente.phone}" required class="form-control d-inline" placeholder="Ejem: 3112259328">
+            <input type="number" value="${cliente.phone}" class="form-control d-inline" placeholder="Ejem: 3112259328">
           </div>
 
           <label>Correo Electronico</label>
           <div class="input-group mb-3">
           <span class="input-group-text">Email</span>
-            <input type="text" value="${cliente.correo}" required class="form-control" placeholder="Ejem: email@example.com">
+            <input type="text" value="${cliente.correo}" class="form-control" placeholder="Ejem: email@example.com">
           </div>
 
           <label>Lugar de expedicion</label>
-          <input type="text" value="${cliente.city}" required class="form-control" placeholder="Fortul - Arauca">
+          <input type="text" value="${cliente.city}" class="form-control" placeholder="Fortul - Arauca">
 
           <label>Dirección del pedido / vivienda</label>
-          <input type="text" value="${cliente.direccion}" required class="form-control" placeholder="Calle #15 12-13">
+          <input type="text" value="${cliente.direccion}" class="form-control" placeholder="Calle #15 12-13">
 
           <label>Categoría (opcional)</label>
           <input type="text" value="${cliente.categoria || ""}" class="form-control" placeholder="Ej: Empresa">
@@ -4115,6 +4194,7 @@ function reciboVentaHTML(venta) {
           <span class="ft-col-val ft-val">${ftMoney(valor)}</span>
         </div>
         <div class="ft-sub">x${ch.cantidad} @ ${ftMoney(unitario)}</div>
+        ${(ch.descripcion && String(ch.descripcion).trim()) ? `<div class="ft-desc" style="font-size:0.85em; opacity:0.95; margin-left:2px; white-space:pre-wrap; word-break:break-word;">${ch.descripcion}</div>` : ''}
       </div>`;
   }).join('')}
 
@@ -5918,7 +5998,7 @@ function exportarExcelVentasClientes() {
     return null;
   };
 
-// VENTAS QUE QUEDARON FUERA POR NO TENER EL DATO DE CATEGORIA O PROVIENE. Un cliente
+  // VENTAS QUE QUEDARON FUERA POR NO TENER EL DATO DE CATEGORIA O PROVIENE. Un cliente
   // que tiene el dato pero de otro valor es un filtro normal y no se reporta; solo se
   // avisa de los que no tienen el dato, porque de no saber a que grupo pertenecen.
   let ventasSinDato = 0;

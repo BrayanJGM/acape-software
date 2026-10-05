@@ -1026,7 +1026,9 @@ class Database {
 			pesaje: data.pesaje,
 			venta_por_peso: data.venta_por_peso ? "true" : "false",
 			tecla: data.tecla != null ? String(data.tecla).trim().toLowerCase() : "",
-			max_stock: data.max_stock
+			max_stock: data.max_stock,
+			descripcion: (data.descripcion != null && String(data.descripcion).trim() !== '') ? String(data.descripcion) : "",
+			fijado: (data.fijado) ? "true" : "false"
 		};
 
 		if (final_data.pesaje) {
@@ -1153,6 +1155,19 @@ class Database {
 		findingProduct.stock = newInfo.stock ? newInfo.stock : findingProduct.stock;
 		findingProduct.costo_adquisitivo = newInfo.costo_adquisitivo ? newInfo.costo_adquisitivo : findingProduct.costo_adquisitivo;
 		findingProduct.max_stock = newInfo.max_stock;
+
+		// Descripción (opcional)
+		if (newInfo.descripcion !== undefined) {
+			findingProduct.descripcion = (newInfo.descripcion != null && String(newInfo.descripcion).trim() !== '') ? String(newInfo.descripcion) : "";
+		} else if (findingProduct.descripcion === undefined || findingProduct.descripcion === null) {
+			findingProduct.descripcion = "";
+		}
+
+		if (newInfo.fijado !== undefined) {
+			findingProduct.fijado = (newInfo.fijado) ? "true" : "false";
+		} else if (findingProduct.fijado === undefined || findingProduct.fijado === null) {
+			findingProduct.fijado = "false";
+		}
 
 		findingProduct.pesaje = newInfo.pesaje;
 
